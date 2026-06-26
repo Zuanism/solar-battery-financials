@@ -1,6 +1,6 @@
 # Solar & Battery Financials
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Zuanism&repository=solar-battery-financials&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=YOUR_GITHUB_USERNAME&repository=solar-battery-financials&category=integration)
 
 A custom integration for Home Assistant that provides deep, real-time financial tracking of your Solar PV, Home Battery storage system, and individual household appliances. 
 

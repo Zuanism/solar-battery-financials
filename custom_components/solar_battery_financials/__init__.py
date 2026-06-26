@@ -26,19 +26,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # 2. Globally inject script into HA Frontend (Zero-config + Cache Busting!)
         add_extra_js_url(hass, f"{script_url}?v=2026_06_26")
 
-        # 3. Also register in Lovelace storage resources
-        try:
-            resources = hass.data.get("lovelace", {}).resources
-            if resources:
-                if not getattr(resources, "loaded", True):
-                    await resources.async_load()
-                    resources.loaded = True
-                if not any(r.get("url") == script_url for r in resources.async_items()):
-                    if hasattr(resources, "async_create_item"):
-                        await resources.async_create_item({"res_type": "module", "url": script_url})
-        except Exception:
-            pass
-
     entry.async_on_unload(entry.add_update_listener(update_listener))
     
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
