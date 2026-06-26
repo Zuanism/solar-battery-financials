@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solar & Battery Financials",
+        "description": "Please select the sensors for your system.",
+        "data": {
+          "grid_sensor": "Grid Power Sensor (W)",
+          "solar_sensor": "Solar Power Sensor (W)",
+          "battery_sensor": "Battery Power Sensor (W)",
+          "price_sensor": "Energy Price Sensor (EUR/kWh)",
+          "feed_in_penalty": "Feed-In Penalty (EUR/kWh)",
+          "prefix": "Entity ID Prefix (e.g. sbf_)",
+          "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
+          "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
+        }
+      },
+      "device_names": {
+        "title": "Name Your Devices",
+        "description": "Please provide friendly names for the devices you selected."
+      },
+      "sub_devices": {
+        "title": "Identify Sub-Devices",
+        "description": "Select any devices that are plugged into another tracked device. This prevents Double Counting in your Untracked House total.",
+        "data": {
+          "sub_devices": "Sub-Devices"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "domain": "solar_battery_financials",
+  "name": "Solar & Battery Financials",
+  "version": "1.0.0",
+  "documentation": "https://github.com/YOUR_GITHUB_USERNAME/solar-battery-financials",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/YOUR_GITHUB_USERNAME/solar-battery-financials/issues"
+}
