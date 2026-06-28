@@ -6,11 +6,13 @@
         "description": "Please select the sensors for your system.",
         "data": {
           "grid_sensor": "Grid Power Sensor (W)",
-          "solar_sensor": "Solar Power Sensor (W)",
-          "battery_sensor": "Battery Power Sensor (W)",
-          "price_sensor": "Energy Price Sensor (EUR/kWh)",
-          "feed_in_penalty": "Feed-In Penalty (EUR/kWh)",
-          "prefix": "Entity ID Prefix (e.g. sbf_)",
+          "solar_sensor": "Solar Power Sensor (W) (Optional)",
+          "battery_sensor": "Battery Power Sensor (W) (Optional)",
+          "price_sensor": "Import Energy Price Sensor (EUR/kWh)",
+          "export_price_sensor": "Export Energy Price Sensor (EUR/kWh) (Optional)",
+          "feed_in_penalty": "Export Price Offset / Feed-In Penalty (EUR/kWh) (Optional)",
+          "feed_in_penalty_percent": "Export Price Percentage Deduction (%) (Optional)",
+          "prefix": "Entity ID Prefix (e.g. sbf_) (Optional)",
           "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
           "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
         }
@@ -23,7 +25,38 @@
         "title": "Identify Sub-Devices",
         "description": "Select any devices that are plugged into another tracked device. This prevents Double Counting in your Untracked House total.",
         "data": {
-          "sub_devices": "Sub-Devices"
+          "sub_devices": "Sub-Devices (Optional)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Solar & Battery Financials Options",
+        "description": "Configure sensors and parameters for your system.",
+        "data": {
+          "grid_sensor": "Grid Power Sensor (W)",
+          "solar_sensor": "Solar Power Sensor (W) (Optional)",
+          "battery_sensor": "Battery Power Sensor (W) (Optional)",
+          "price_sensor": "Import Energy Price Sensor (EUR/kWh)",
+          "export_price_sensor": "Export Energy Price Sensor (EUR/kWh) (Optional)",
+          "feed_in_penalty": "Export Price Offset / Feed-In Penalty (EUR/kWh) (Optional)",
+          "feed_in_penalty_percent": "Export Price Percentage Deduction (%) (Optional)",
+          "prefix": "Entity ID Prefix (e.g. sbf_) (Optional)",
+          "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
+          "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
+        }
+      },
+      "device_names": {
+        "title": "Name Your Devices",
+        "description": "Please provide friendly names for the devices you selected."
+      },
+      "sub_devices": {
+        "title": "Identify Sub-Devices",
+        "description": "Select any devices that are plugged into another tracked device. This prevents Double Counting in your Untracked House total.",
+        "data": {
+          "sub_devices": "Sub-Devices (Optional)"
         }
       }
     }

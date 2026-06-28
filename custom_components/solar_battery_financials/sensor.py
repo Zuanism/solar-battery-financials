@@ -14,6 +14,7 @@ from .const import (
     CONF_SOLAR_SENSOR,
     CONF_BATTERY_SENSOR,
     CONF_PRICE_SENSOR,
+    CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
     CONF_PREFIX,
@@ -31,6 +32,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     solar_sensor = config.get(CONF_SOLAR_SENSOR)
     battery_sensor = config.get(CONF_BATTERY_SENSOR)
     price_sensor = config[CONF_PRICE_SENSOR]
+    export_price_sensor = config.get(CONF_EXPORT_PRICE_SENSOR)
     penalty = config.get(CONF_FEED_IN_PENALTY, 0.0)
     penalty_pct = config.get(CONF_FEED_IN_PENALTY_PERCENT, 0.0)
     prefix = config.get(CONF_PREFIX, "sbf_")
@@ -40,7 +42,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     sub_devices = config.get("sub_devices", [])
 
     manager = FinancialManager(
-        hass, grid_sensor, solar_sensor, battery_sensor, price_sensor, penalty, penalty_pct, inverter_ac_sensor, tracked_devices, sub_devices, device_names
+        hass, grid_sensor, solar_sensor, battery_sensor, price_sensor, export_price_sensor, penalty, penalty_pct, inverter_ac_sensor, tracked_devices, sub_devices, device_names
     )
 
     sys_id = f"{prefix}system_financials"
@@ -133,9 +135,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     await manager.async_start()
 
 class FinancialManager:
-    def __init__(self, hass, grid, solar, battery, price, penalty, penalty_pct=0.0, inverter_ac=None, tracked_devices=None, sub_devices=None, device_names=None):
+    def __init__(self, hass, grid, solar, battery, price, export_price, penalty, penalty_pct=0.0, inverter_ac=None, tracked_devices=None, sub_devices=None, device_names=None):
         self.hass = hass
         self.entities = [grid, price]
+        if export_price and export_price != price:
+            self.entities.append(export_price)
         if solar:
             self.entities.append(solar)
         if battery:
@@ -153,6 +157,7 @@ class FinancialManager:
         self.solar_id = solar
         self.battery_id = battery
         self.price_id = price
+        self.export_price_id = export_price
         self.inverter_ac_id = inverter_ac
         self.penalty_fixed = penalty
         self.penalty_pct = penalty_pct
@@ -162,6 +167,7 @@ class FinancialManager:
             "solar": 0.0,
             "battery": 0.0,
             "price": 0.0,
+            "export_price": 0.0,
             "inverter_ac": 0.0,
             "total_power_consumption": 0.0,
             "total_cost_rate": 0.0,
@@ -218,8 +224,10 @@ class FinancialManager:
             self.values["battery"] = val
         elif entity_id == self.inverter_ac_id:
             self.values["inverter_ac"] = val
-        elif entity_id == self.price_id:
+        if entity_id == self.price_id:
             self.values["price"] = val
+        if entity_id == self.export_price_id:
+            self.values["export_price"] = val
         elif entity_id in self.tracked_devices:
             safe_key = entity_id.replace("sensor.", "").replace(".", "_")
             self.values[f"dev_{safe_key}_power"] = val
@@ -234,6 +242,7 @@ class FinancialManager:
         raw_solar = self.values["solar"]
         raw_battery = self.values["battery"]
         price = self.values["price"]
+        raw_export_price = self.values["export_price"] if self.export_price_id and self.export_price_id != self.price_id else price
         inverter_ac = -self.values["inverter_ac"] # Inverted: Deye L1 is Negative when supplying power
 
         if self.inverter_ac_id:
@@ -256,7 +265,7 @@ class FinancialManager:
         gross_cost = total_load_kw * price
         self.values["total_cost_rate"] = gross_cost
         
-        export_price = price * (1.0 - self.penalty_pct / 100.0) - self.penalty_fixed
+        export_price = raw_export_price * (1.0 - self.penalty_pct / 100.0) - self.penalty_fixed
         if grid_kw > 0:
             net_grid_cost = grid_kw * price
             
@@ -302,7 +311,7 @@ class FinancialManager:
         if sim_grid > 0:
             sim_net_cost = sim_grid * price
         else:
-            sim_net_cost = sim_grid * (price * (1.0 - self.penalty_pct / 100.0) - self.penalty_fixed)
+            sim_net_cost = sim_grid * (raw_export_price * (1.0 - self.penalty_pct / 100.0) - self.penalty_fixed)
             
         solar_only = gross_cost - sim_net_cost
         self.values["solar_only_earnings_rate"] = solar_only
@@ -364,6 +373,7 @@ class TotalPowerSensor(ManagedSensor):
             "solar_sensor": self.manager.solar_id,
             "battery_sensor": self.manager.battery_id,
             "price_sensor": self.manager.price_id,
+            "export_price_sensor": self.manager.export_price_id,
         }
 
 class TotalCostRateSensor(ManagedSensor):

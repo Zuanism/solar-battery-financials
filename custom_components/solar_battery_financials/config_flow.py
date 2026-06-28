@@ -9,6 +9,7 @@ from .const import (
     CONF_BATTERY_SENSOR,
     CONF_INVERTER_AC_SENSOR,
     CONF_PRICE_SENSOR,
+    CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
     CONF_PREFIX,
@@ -52,7 +53,7 @@ class SolarBatteryFinancialsOptionsFlowHandler(config_entries.OptionsFlowWithCon
                     selector.EntitySelectorConfig(domain="sensor")
                 )
                 
-        for key in [CONF_SOLAR_SENSOR, CONF_BATTERY_SENSOR]:
+        for key in [CONF_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_EXPORT_PRICE_SENSOR]:
             val = config.get(key)
             if val is not None:
                 schema_dict[vol.Optional(key, default=val)] = selector.EntitySelector(
@@ -190,6 +191,9 @@ class SolarBatteryFinancialsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN)
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
                 vol.Required(CONF_PRICE_SENSOR): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Optional(CONF_EXPORT_PRICE_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
                 vol.Optional(CONF_FEED_IN_PENALTY, default=DEFAULT_FEED_IN_PENALTY): vol.Coerce(float),
