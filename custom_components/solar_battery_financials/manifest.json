@@ -1,7 +1,7 @@
 {
   "domain": "solar_battery_financials",
   "name": "Solar & Battery Financials",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "documentation": "https://github.com/YOUR_GITHUB_USERNAME/solar-battery-financials",
   "dependencies": [],
   "codeowners": [],
