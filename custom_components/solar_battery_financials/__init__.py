@@ -24,7 +24,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             [StaticPathConfig(script_url, strategy_path, False)]
         )
         # 2. Globally inject script into HA Frontend (Zero-config + Cache Busting!)
-        add_extra_js_url(hass, f"{script_url}?v=2026_06_27_v22")
+        add_extra_js_url(hass, f"{script_url}?v=2026_06_27_v28")
 
     entry.async_on_unload(entry.add_update_listener(update_listener))
     

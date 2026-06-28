@@ -40,7 +40,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     sub_devices = config.get("sub_devices", [])
 
     manager = FinancialManager(
-        hass, grid_sensor, solar_sensor, battery_sensor, price_sensor, penalty, penalty_pct, inverter_ac_sensor, tracked_devices, sub_devices
+        hass, grid_sensor, solar_sensor, battery_sensor, price_sensor, penalty, penalty_pct, inverter_ac_sensor, tracked_devices, sub_devices, device_names
     )
 
     sys_id = f"{prefix}system_financials"
@@ -133,7 +133,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     await manager.async_start()
 
 class FinancialManager:
-    def __init__(self, hass, grid, solar, battery, price, penalty, penalty_pct=0.0, inverter_ac=None, tracked_devices=None, sub_devices=None):
+    def __init__(self, hass, grid, solar, battery, price, penalty, penalty_pct=0.0, inverter_ac=None, tracked_devices=None, sub_devices=None, device_names=None):
         self.hass = hass
         self.entities = [grid, price]
         if solar:
@@ -145,6 +145,7 @@ class FinancialManager:
             
         self.tracked_devices = tracked_devices or []
         self.sub_devices = sub_devices or []
+        self.device_names = device_names or {}
         for dev in self.tracked_devices:
             self.entities.append(dev)
             
@@ -357,6 +358,7 @@ class TotalPowerSensor(ManagedSensor):
     def extra_state_attributes(self):
         return {
             "tracked_devices": self.manager.tracked_devices,
+            "device_names": self.manager.device_names,
             "sub_devices": self.manager.sub_devices,
             "grid_sensor": self.manager.grid_id,
             "solar_sensor": self.manager.solar_id,
