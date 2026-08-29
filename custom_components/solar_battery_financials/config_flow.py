@@ -118,7 +118,7 @@ class SolarBatteryFinancialsOptionsFlowHandler(config_entries.OptionsFlowWithCon
                 device_id, 
                 device_id.replace("sensor.", "").replace("_power", "").replace("_", " ").title()
             )
-            schema_dict[vol.Required(device_id, default=default_name)] = str
+            schema_dict[vol.Optional(device_id, description={"suggested_value": default_name})] = str
 
         return self.async_show_form(step_id="device_names", data_schema=vol.Schema(schema_dict))
 
@@ -217,7 +217,7 @@ class SolarBatteryFinancialsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN)
         schema_dict = {}
         for device_id in self.config_data.get(CONF_TRACKED_DEVICES, []):
             default_name = device_id.replace("sensor.", "").replace("_power", "").replace("_", " ").title()
-            schema_dict[vol.Required(device_id, default=default_name)] = str
+            schema_dict[vol.Optional(device_id, description={"suggested_value": default_name})] = str
 
         return self.async_show_form(step_id="device_names", data_schema=vol.Schema(schema_dict))
 

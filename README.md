@@ -67,7 +67,7 @@ The integration generates a suite of sensors. For each metric, it creates a live
 
 ### 3. Solar Only Earnings (The Simulator)
 * **Solar Only Earnings Rate (`solar_only_earnings_rate`)**: What your system *would* be saving you if you had the solar panels, but the battery was entirely removed.
-  * *Math:* Calculates a simulated Grid Import/Export by subtracting raw PV generation (adjusted for dynamic inverter efficiency) from your house load.
+  * *Math Summary:* Calculates a simulated Grid Import/Export by subtracting raw PV generation (adjusted for dynamic inverter efficiency) from your house load.
 * **Solar Earnings (`solar_earnings`)**: Cumulative money saved purely by the panels.
 
 ### 4. Battery Added Value
@@ -89,6 +89,42 @@ For every device added to the "Tracked Devices" configuration, the integration d
 ---
 
 ## 🧠 How the Math Works (Advanced)
+
+### Solar Only Earnings Simulator Formula
+To isolate what your solar panels earn independently of your battery, the integration simulates your net grid bill in real-time under a **No-Battery** scenario (`FinancialManager.recalculate`):
+
+1. **Gross Cost Rate (`gross_cost`)**:
+   If 100% of your current house load (`total_load_kw`) were purchased from the grid:
+   ```text
+   Gross Cost Rate (EUR/h) = Total House Load (kW) * Import Price (EUR/kWh)
+   ```
+2. **Simulated AC Solar Output (`sim_solar_ac`)**:
+   Converts DC solar output (`raw_solar`) to AC power using your inverter's current efficiency (`_last_efficiency`, default `0.96`):
+   ```text
+   Simulated AC Solar (W)  = max(Raw DC Solar (W), 0) * Inverter Efficiency
+   Simulated AC Solar (kW) = Simulated AC Solar (W) / 1000
+   ```
+3. **Simulated Grid Balance (`sim_grid`)**:
+   Calculates net grid power requirement without a battery:
+   ```text
+   Simulated Grid (kW) = Total House Load (kW) - Simulated AC Solar (kW)
+   ```
+4. **Simulated Net Grid Bill (`sim_net_cost`)**:
+   - **Net Import (`sim_grid > 0`)**: You purchase the deficit at your import tariff:
+     ```text
+     Simulated Net Cost Rate (EUR/h) = Simulated Grid (kW) * Import Price (EUR/kWh)
+     ```
+   - **Net Export (`sim_grid <= 0`)**: You export excess power at your effective feed-in price after any deductions:
+     ```text
+     Effective Export Price (EUR/kWh) = (Export Price * (1 - Penalty_Percentage / 100)) - Fixed_Penalty
+     Simulated Net Cost Rate (EUR/h)  = Simulated Grid (kW) * Effective Export Price (EUR/kWh)
+     ```
+     *(Since `Simulated Grid` is negative during export, multiplying by the export price gives a negative cost, representing revenue).*
+5. **Solar Only Earnings Rate (`solar_only_earnings_rate`)**:
+   The exact difference between what your house would have cost without any system and what it would cost with solar alone:
+   ```text
+   Solar Only Earnings Rate (EUR/h) = Gross Cost Rate (EUR/h) - Simulated Net Cost Rate (EUR/h)
+   ```
 
 ### Tracked Device Pricing (Opportunity Cost)
 When you track independent devices, the integration calculates their cost using a **Real-Time Opportunity Cost** philosophy. The `Effective Price` applied to your devices dynamically shifts based on what is happening at your utility meter at that exact second:
