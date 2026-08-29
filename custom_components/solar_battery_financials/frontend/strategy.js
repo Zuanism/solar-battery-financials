@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * EXACT 1:1 Golden Reference Clone (Generated from dashboard_view.yaml)
  */
-console.info("⚡ SBF Strategy JS loaded (v5.8 Period Fix)");
+console.info("⚡ SBF Strategy JS loaded (v5.10 Generic)");
 const GOLDEN_VIEWS = [
   {
     type: "sections",
@@ -18,64 +18,26 @@ const GOLDEN_VIEWS = [
             type: "custom:power-flow-card-plus",
             entities: {
               battery: {
-                entity: "sensor.deye_inverter_battery_power",
-                state_of_charge: "sensor.deye_inverter_battery",
+                entity: "sensor.dummy_battery_power",
+                state_of_charge: "sensor.dummy_battery_soc",
                 show_state_of_charge: true,
                 state_of_charge_unit_white_space: true,
               },
               grid: {
-                entity: "sensor.p1_meter_3c39e72e7916_active_power",
+                entity: "sensor.dummy_grid_power",
                 secondary_info: {},
               },
               solar: {
                 display_zero_state: true,
                 secondary_info: {},
-                entity: "sensor.pv_power",
+                entity: "sensor.dummy_solar_power",
               },
               fossil_fuel_percentage: { secondary_info: {} },
               home: {
                 entity: "sensor.sbf2_total_power_consumption",
                 secondary_info: {},
               },
-              individual: [
-                {
-                  entity: "sensor.flow_charger_power",
-                  name: "Charger",
-                  icon: "mdi:ev-station",
-                  secondary_info: {},
-                },
-                {
-                  entity: "sensor.flow_untracked_power",
-                  name: "Untracked",
-                  icon: "mdi:help-network-outline",
-                  secondary_info: {},
-                },
-                {
-                  entity: "sensor.flow_liv_bedrooms_power",
-                  name: "Liv/bedrooms",
-                  secondary_info: {},
-                },
-                {
-                  entity: "sensor.flow_washing_machine_power",
-                  name: "Washing machine",
-                  secondary_info: {},
-                },
-                {
-                  entity: "sensor.flow_dishwasher_power",
-                  name: "Dishwasher",
-                  secondary_info: {},
-                },
-                {
-                  entity: "sensor.flow_attic_tv_power",
-                  name: "Attic+TV",
-                  secondary_info: {},
-                },
-                {
-                  entity: "sensor.flow_kitchen_power",
-                  name: "Template Device",
-                  secondary_info: {},
-                },
-              ],
+              individual: [],
             },
             clickable_entities: true,
             display_zero_lines: {
@@ -114,7 +76,7 @@ const GOLDEN_VIEWS = [
               },
               {
                 type: "custom:mushroom-entity-card",
-                entity: "sensor.my_price_sensor",
+                entity: "sensor.dummy_price",
                 name: "Price",
                 icon: "mdi:cash",
                 icon_color: "amber",
@@ -124,7 +86,7 @@ const GOLDEN_VIEWS = [
               },
               {
                 type: "custom:mushroom-entity-card",
-                entity: "sensor.deye_inverter_battery_temperature",
+                entity: "sensor.dummy_battery_temp",
                 name: "Battery Temp",
                 icon: "mdi:thermometer",
                 icon_color: "orange",
@@ -156,118 +118,6 @@ const GOLDEN_VIEWS = [
                     ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                 },
                 cards: [
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_grote_slaapkamers_woonkamer_power",
-                    primary: "Living & bedrooms",
-                    secondary:
-                      "{{ states('sensor.shelly_grote_slaapkamers_woonkamer_power') | float(0) | round(0) }} W",
-                    icon: "mdi:sofa",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_grote_slaapkamers_woonkamer_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_keuken_power",
-                    primary: "Template Device",
-                    secondary:
-                      "{{ states('sensor.shelly_keuken_power') | float(0) | round(0) }} W",
-                    icon: "mdi:countertop",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_keuken_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_vaatwasser_power",
-                    primary: "Dishwasher",
-                    secondary:
-                      "{{ states('sensor.shelly_vaatwasser_power') | float(0) | round(0) }} W",
-                    icon: "mdi:dishwasher",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_vaatwasser_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_wasmachine_power",
-                    primary: "Washing machine",
-                    secondary:
-                      "{{ states('sensor.shelly_wasmachine_power') | float(0) | round(0) }} W",
-                    icon: "mdi:washing-machine",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_wasmachine_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_zolder_en_kleine_slaapkamer_power",
-                    primary: "Attic & TV",
-                    secondary:
-                      "{{ states('sensor.shelly_zolder_en_kleine_slaapkamer_power') | float(0) | round(0) }} W",
-                    icon: "mdi:home-roof",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_zolder_en_kleine_slaapkamer_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.myenergi_charger_power_charging",
-                    primary: "Charger",
-                    secondary:
-                      "{{ states('sensor.myenergi_charger_power_charging') | float(0) | round(0) }} W",
-                    icon: "mdi:ev-station",
-                    icon_color:
-                      "{% set p = states('sensor.myenergi_charger_power_charging') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.sbf2_untracked_power",
-                    primary: "Untracked",
-                    secondary:
-                      "{{ states('sensor.sbf2_untracked_power') | float(0) | round(0) }} W",
-                    icon: "mdi:help-network-outline",
-                    icon_color:
-                      "{% set p = states('sensor.sbf2_untracked_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
                 ],
               },
             ],
@@ -285,102 +135,6 @@ const GOLDEN_VIEWS = [
                     ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                 },
                 cards: [
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_attic_switch_0_power",
-                    primary: "Attic",
-                    secondary:
-                      "{{ states('sensor.shelly_attic_switch_0_power') | float(0) | round(0) }} W",
-                    icon: "mdi:home-roof",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_attic_switch_0_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.airco_power_average",
-                    primary: "Airco",
-                    secondary:
-                      "{{ states('sensor.airco_power_average') | float(0) | round(0) }} W",
-                    icon: "mdi:air-conditioner",
-                    icon_color:
-                      "{% set p = states('sensor.airco_power_average') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.all_lights_power",
-                    primary: "All Lights",
-                    secondary:
-                      "{{ states('sensor.all_lights_power') | float(0) | round(0) }} W",
-                    icon: "mdi:lightbulb-group",
-                    icon_color:
-                      "{% set p = states('sensor.all_lights_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_couch_switch_0_power",
-                    primary: "Floor heating",
-                    secondary:
-                      "{{ states('sensor.shelly_couch_switch_0_power') | float(0) | round(0) }} W",
-                    icon: "mdi:heating-coil",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_couch_switch_0_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_office_switch_0_power",
-                    primary: "Office",
-                    secondary:
-                      "{{ states('sensor.shelly_office_switch_0_power') | float(0) | round(0) }} W",
-                    icon: "mdi:desk",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_office_switch_0_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
-                  {
-                    type: "custom:mushroom-template-card",
-                    entity: "sensor.shelly_tv_switch_0_power",
-                    primary: "TV",
-                    secondary:
-                      "{{ states('sensor.shelly_tv_switch_0_power') | float(0) | round(0) }} W",
-                    icon: "mdi:television",
-                    icon_color:
-                      "{% set p = states('sensor.shelly_tv_switch_0_power') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}",
-                    layout: "horizontal",
-                    fill_container: true,
-                    card_mod: {
-                      style:
-                        "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                    },
-                  },
                 ],
               },
             ],
@@ -1201,28 +955,6 @@ const GOLDEN_VIEWS = [
                       cards: [
                         {
                           type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_living_and_bedrooms_cost_rate_daily",
-                          primary: "Living & bedrooms",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_living_and_bedrooms_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:sofa",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-living-bedrooms",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
                           entity: "sensor.sbf2_dev_template_device_cost_rate_daily",
                           primary: "Template Device",
                           secondary:
@@ -1236,113 +968,6 @@ const GOLDEN_VIEWS = [
                             action: "navigate",
                             navigation_path:
                               "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_dishwasher_cost_rate_daily",
-                          primary: "Dishwasher",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_dishwasher_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_dishwasher_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:dishwasher",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_dishwasher_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-dishwasher",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_washing_machine_cost_rate_daily",
-                          primary: "Washing machine",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_washing_machine_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_washing_machine_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:washing-machine",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_washing_machine_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-washing-machine",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_attic_and_tv_cost_rate_daily",
-                          primary: "Attic & TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_and_tv_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_and_tv_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_and_tv_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_charger_cost_rate_daily",
-                          primary: "Charger",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_charger_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_charger_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:ev-station",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_charger_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-charger",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_untracked_cost_rate_daily",
-                          primary: "Untracked",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_untracked_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_untracked_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:help-network-outline",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_untracked_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-untracked",
                           },
                           card_mod: {
                             style:
@@ -1370,132 +995,6 @@ const GOLDEN_VIEWS = [
                           ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                       },
                       cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_attic_cost_rate_daily",
-                          primary: "Attic",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_airco_cost_rate_daily",
-                          primary: "Airco",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_airco_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_airco_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:air-conditioner",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_airco_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-airco",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_all_lights_cost_rate_daily",
-                          primary: "All Lights",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_all_lights_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_all_lights_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:lightbulb-group",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_all_lights_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-all-lights",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_floor_heating_cost_rate_daily",
-                          primary: "Floor heating",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_floor_heating_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_floor_heating_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:heating-coil",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_floor_heating_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-floor-heating",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_office_cost_rate_daily",
-                          primary: "Office",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_office_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_office_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:desk",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_office_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-office",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_tv_cost_rate_daily",
-                          primary: "TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_tv_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_tv_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:television",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_tv_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path: "/lovelace-battery/financials-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
                       ],
                     },
                   ],
@@ -1530,28 +1029,6 @@ const GOLDEN_VIEWS = [
                       cards: [
                         {
                           type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_living_and_bedrooms_cost_rate_weekly",
-                          primary: "Living & bedrooms",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_living_and_bedrooms_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:sofa",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-living-bedrooms",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
                           entity: "sensor.sbf2_dev_template_device_cost_rate_weekly",
                           primary: "Template Device",
                           secondary:
@@ -1565,113 +1042,6 @@ const GOLDEN_VIEWS = [
                             action: "navigate",
                             navigation_path:
                               "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_dishwasher_cost_rate_weekly",
-                          primary: "Dishwasher",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_dishwasher_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_dishwasher_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:dishwasher",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_dishwasher_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-dishwasher",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_washing_machine_cost_rate_weekly",
-                          primary: "Washing machine",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_washing_machine_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_washing_machine_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:washing-machine",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_washing_machine_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-washing-machine",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_attic_and_tv_cost_rate_weekly",
-                          primary: "Attic & TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_and_tv_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_and_tv_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_and_tv_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_charger_cost_rate_weekly",
-                          primary: "Charger",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_charger_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_charger_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:ev-station",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_charger_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-charger",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_untracked_cost_rate_weekly",
-                          primary: "Untracked",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_untracked_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_untracked_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:help-network-outline",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_untracked_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-untracked",
                           },
                           card_mod: {
                             style:
@@ -1699,132 +1069,6 @@ const GOLDEN_VIEWS = [
                           ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                       },
                       cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_attic_cost_rate_weekly",
-                          primary: "Attic",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_airco_cost_rate_weekly",
-                          primary: "Airco",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_airco_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_airco_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:air-conditioner",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_airco_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-airco",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_all_lights_cost_rate_weekly",
-                          primary: "All Lights",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_all_lights_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_all_lights_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:lightbulb-group",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_all_lights_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-all-lights",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_floor_heating_cost_rate_weekly",
-                          primary: "Floor heating",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_floor_heating_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_floor_heating_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:heating-coil",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_floor_heating_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-floor-heating",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_office_cost_rate_weekly",
-                          primary: "Office",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_office_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_office_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:desk",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_office_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-office",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_tv_cost_rate_weekly",
-                          primary: "TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_tv_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_tv_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:television",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_tv_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path: "/lovelace-battery/financials-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
                       ],
                     },
                   ],
@@ -1862,28 +1106,6 @@ const GOLDEN_VIEWS = [
                       cards: [
                         {
                           type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_living_and_bedrooms_cost_rate_monthly",
-                          primary: "Living & bedrooms",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_living_and_bedrooms_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:sofa",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-living-bedrooms",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
                           entity: "sensor.sbf2_dev_template_device_cost_rate_monthly",
                           primary: "Template Device",
                           secondary:
@@ -1897,114 +1119,6 @@ const GOLDEN_VIEWS = [
                             action: "navigate",
                             navigation_path:
                               "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_dishwasher_cost_rate_monthly",
-                          primary: "Dishwasher",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_dishwasher_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_dishwasher_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:dishwasher",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_dishwasher_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-dishwasher",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_washing_machine_cost_rate_monthly",
-                          primary: "Washing machine",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_washing_machine_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_washing_machine_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:washing-machine",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_washing_machine_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-washing-machine",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_attic_and_tv_cost_rate_monthly",
-                          primary: "Attic & TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_and_tv_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_and_tv_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_and_tv_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_charger_cost_rate_monthly",
-                          primary: "Charger",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_charger_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_charger_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:ev-station",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_charger_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-charger",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_untracked_cost_rate_monthly",
-                          primary: "Untracked",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_untracked_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_untracked_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:help-network-outline",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_untracked_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-untracked",
                           },
                           card_mod: {
                             style:
@@ -2032,133 +1146,6 @@ const GOLDEN_VIEWS = [
                           ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                       },
                       cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_attic_cost_rate_monthly",
-                          primary: "Attic",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_airco_cost_rate_monthly",
-                          primary: "Airco",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_airco_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_airco_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:air-conditioner",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_airco_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-airco",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_all_lights_cost_rate_monthly",
-                          primary: "All Lights",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_all_lights_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_all_lights_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:lightbulb-group",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_all_lights_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-all-lights",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_floor_heating_cost_rate_monthly",
-                          primary: "Floor heating",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_floor_heating_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_floor_heating_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:heating-coil",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_floor_heating_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-floor-heating",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_office_cost_rate_monthly",
-                          primary: "Office",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_office_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_office_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:desk",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_office_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-office",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_tv_cost_rate_monthly",
-                          primary: "TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_tv_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_tv_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:television",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_tv_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path: "/lovelace-battery/financials-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
                       ],
                     },
                   ],
@@ -2193,28 +1180,6 @@ const GOLDEN_VIEWS = [
                       cards: [
                         {
                           type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_living_and_bedrooms_cost_rate_yearly",
-                          primary: "Living & bedrooms",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_living_and_bedrooms_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:sofa",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-living-bedrooms",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
                           entity: "sensor.sbf2_dev_template_device_cost_rate_yearly",
                           primary: "Template Device",
                           secondary:
@@ -2228,113 +1193,6 @@ const GOLDEN_VIEWS = [
                             action: "navigate",
                             navigation_path:
                               "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_dishwasher_cost_rate_yearly",
-                          primary: "Dishwasher",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_dishwasher_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_dishwasher_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:dishwasher",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_dishwasher_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-dishwasher",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_washing_machine_cost_rate_yearly",
-                          primary: "Washing machine",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_washing_machine_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_washing_machine_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:washing-machine",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_washing_machine_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-washing-machine",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_attic_and_tv_cost_rate_yearly",
-                          primary: "Attic & TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_and_tv_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_and_tv_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_and_tv_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_charger_cost_rate_yearly",
-                          primary: "Charger",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_charger_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_charger_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:ev-station",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_charger_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-charger",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_untracked_cost_rate_yearly",
-                          primary: "Untracked",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_untracked_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_untracked_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:help-network-outline",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_untracked_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-untracked",
                           },
                           card_mod: {
                             style:
@@ -2362,132 +1220,6 @@ const GOLDEN_VIEWS = [
                           ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                       },
                       cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_attic_cost_rate_yearly",
-                          primary: "Attic",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_airco_cost_rate_yearly",
-                          primary: "Airco",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_airco_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_airco_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:air-conditioner",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_airco_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-airco",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_all_lights_cost_rate_yearly",
-                          primary: "All Lights",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_all_lights_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_all_lights_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:lightbulb-group",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_all_lights_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-all-lights",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_floor_heating_cost_rate_yearly",
-                          primary: "Floor heating",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_floor_heating_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_floor_heating_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:heating-coil",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_floor_heating_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-floor-heating",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_office_cost_rate_yearly",
-                          primary: "Office",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_office_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_office_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:desk",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_office_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-office",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_tv_cost_rate_yearly",
-                          primary: "TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_tv_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_tv_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:television",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_tv_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path: "/lovelace-battery/financials-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
                       ],
                     },
                   ],
@@ -2526,28 +1258,6 @@ const GOLDEN_VIEWS = [
                         {
                           type: "custom:mushroom-template-card",
                           entity:
-                            "sensor.sbf2_dev_living_and_bedrooms_cost_rate_cumulative",
-                          primary: "Living & bedrooms",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_living_and_bedrooms_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:sofa",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_living_and_bedrooms_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-living-bedrooms",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
                             "sensor.sbf2_dev_template_device_cost_rate_cumulative",
                           primary: "Template Device",
                           secondary:
@@ -2561,115 +1271,6 @@ const GOLDEN_VIEWS = [
                             action: "navigate",
                             navigation_path:
                               "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_dishwasher_cost_rate_cumulative",
-                          primary: "Dishwasher",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_dishwasher_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_dishwasher_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:dishwasher",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_dishwasher_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-dishwasher",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_washing_machine_cost_rate_cumulative",
-                          primary: "Washing machine",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_washing_machine_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_washing_machine_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:washing-machine",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_washing_machine_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-washing-machine",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_attic_and_tv_cost_rate_cumulative",
-                          primary: "Attic & TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_and_tv_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_and_tv_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_and_tv_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_charger_cost_rate_cumulative",
-                          primary: "Charger",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_charger_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_charger_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:ev-station",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_charger_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-charger",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_untracked_cost_rate_cumulative",
-                          primary: "Untracked",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_untracked_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_untracked_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:help-network-outline",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_untracked_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-untracked",
                           },
                           card_mod: {
                             style:
@@ -2697,133 +1298,6 @@ const GOLDEN_VIEWS = [
                           ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
                       },
                       cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_attic_cost_rate_cumulative",
-                          primary: "Attic",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_attic_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_attic_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:home-roof",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_attic_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-attic",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_airco_cost_rate_cumulative",
-                          primary: "Airco",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_airco_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_airco_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:air-conditioner",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_airco_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-airco",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_all_lights_cost_rate_cumulative",
-                          primary: "All Lights",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_all_lights_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_all_lights_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:lightbulb-group",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_all_lights_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-all-lights",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_floor_heating_cost_rate_cumulative",
-                          primary: "Floor heating",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_floor_heating_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_floor_heating_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:heating-coil",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_floor_heating_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-floor-heating",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_office_cost_rate_cumulative",
-                          primary: "Office",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_office_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_office_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:desk",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_office_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-office",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_tv_cost_rate_cumulative",
-                          primary: "TV",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_tv_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_tv_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:television",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_tv_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path: "/lovelace-battery/financials-tv",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
                       ],
                     },
                   ],
@@ -3053,7 +1527,7 @@ const GOLDEN_VIEWS = [
                       {
                         entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
                         name: "Template Device (Energy)",
-                        unit: " kWh",                        type: "column",
+                        unit: " kWh", type: "column",
                         show: { datalabels: true },
                         statistics: { type: "change", period: "day" },
                       },
@@ -3339,7 +1813,7 @@ const GOLDEN_VIEWS = [
                       {
                         entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
                         name: "Template Device (Energy)",
-                        unit: " kWh",                        type: "column",
+                        unit: " kWh", type: "column",
                         show: { datalabels: true },
                         statistics: { type: "change", period: "week" },
                       },
@@ -3612,7 +2086,7 @@ const GOLDEN_VIEWS = [
                       {
                         entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
                         name: "Template Device (Energy)",
-                        unit: " kWh",                        type: "column",
+                        unit: " kWh", type: "column",
                         show: { datalabels: true },
                         statistics: { type: "change", period: "month" },
                       },
@@ -3691,7 +2165,7 @@ const GOLDEN_VIEWS = [
                   type: "custom:apexcharts-card",
                   graph_span: "10y",
                   span: { end: "day" },
-                  header: { show: false, title: "Template Device (Last 10 Years)" },
+                  header: { show: false, title: "Kitchen (Last 10 Years)" },
                   apex_config: {
                     yaxis: { show: true, title: { text: "Cost (€)" } },
                     chart: {
@@ -3736,8 +2210,7 @@ const GOLDEN_VIEWS = [
                       name: "Template Device",
                       type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" },
+                      statistics: { type: "change", period: "year" },
                     },
                   ],
                 },
@@ -3788,10 +2261,9 @@ const GOLDEN_VIEWS = [
                     {
                       entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
                       name: "Template Device (Energy)",
-                      unit: " kWh",                      type: "column",
+                      unit: " kWh", type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" },
+                      statistics: { type: "change", period: "year" },
                     },
                   ],
                 },
@@ -3830,8 +2302,7 @@ const GOLDEN_VIEWS = [
                         color: "#f97316",
                         type: "column",
                         show: { datalabels: true },
-                        statistics: { type: "state", period: "month" },
-                        group_by: { func: "avg", duration: "1y" },
+                        statistics: { type: "state", period: "year" },
                       },
                     ],
                   }
@@ -3854,7 +2325,7 @@ const GOLDEN_VIEWS = [
                   type: "custom:apexcharts-card",
                   graph_span: "10y",
                   span: { end: "day" },
-                  header: { show: false, title: "Template Device (All-Time)" },
+                  header: { show: false, title: "Kitchen (All-Time)" },
                   apex_config: {
                     yaxis: { show: true, title: { text: "Cost (€)" } },
                     chart: {
@@ -3899,8 +2370,7 @@ const GOLDEN_VIEWS = [
                       name: "Template Device",
                       type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" },
+                      statistics: { type: "change", period: "year" },
                     },
                   ],
                 },
@@ -3951,10 +2421,9 @@ const GOLDEN_VIEWS = [
                     {
                       entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
                       name: "Template Device (Energy)",
-                      unit: " kWh",                      type: "column",
+                      unit: " kWh", type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" },
+                      statistics: { type: "change", period: "year" },
                     },
                   ],
                 },
@@ -3993,8 +2462,7 @@ const GOLDEN_VIEWS = [
                         color: "#f97316",
                         type: "column",
                         show: { datalabels: true },
-                        statistics: { type: "state", period: "month" },
-                        group_by: { func: "avg", duration: "1y" },
+                        statistics: { type: "state", period: "year" },
                       },
                     ],
                   }
@@ -4007,7 +2475,7 @@ const GOLDEN_VIEWS = [
     ],
   },
 
-{ "title": "Total System Earnings History", "path": "financials-total-system-earnings", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_daily", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_weekly", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_monthly", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings (Last 10 Years)" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings (All-Time)" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Solar-Only Earnings History", "path": "financials-solar-only-earnings", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_daily", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_weekly", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_monthly", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Battery Added Value History", "path": "financials-battery-added-value", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_daily", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_weekly", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_monthly", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Effective Cost History", "path": "financials-effective-cost", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_daily", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 0.5, "color": "#10b981" }, { "from": 0.5, "to": 1.5, "color": "#f59e0b" }, { "from": 1.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_weekly", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 3.5, "color": "#10b981" }, { "from": 3.5, "to": 10.5, "color": "#f59e0b" }, { "from": 10.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_monthly", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 15.0, "color": "#10b981" }, { "from": 15.0, "to": 45.0, "color": "#f59e0b" }, { "from": 45.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 182.5, "color": "#10b981" }, { "from": 182.5, "to": 547.5, "color": "#f59e0b" }, { "from": 547.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 500.0, "color": "#10b981" }, { "from": 500.0, "to": 1500.0, "color": "#f59e0b" }, { "from": 1500.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Net Bill History", "path": "financials-net-bill", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_daily", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 0.5, "color": "#10b981" }, { "from": 0.5, "to": 1.5, "color": "#f59e0b" }, { "from": 1.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_weekly", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 3.5, "color": "#10b981" }, { "from": 3.5, "to": 10.5, "color": "#f59e0b" }, { "from": 10.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_monthly", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 15.0, "color": "#10b981" }, { "from": 15.0, "to": 45.0, "color": "#f59e0b" }, { "from": 45.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 182.5, "color": "#10b981" }, { "from": 182.5, "to": 547.5, "color": "#f59e0b" }, { "from": 547.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 500.0, "color": "#10b981" }, { "from": 500.0, "to": 1500.0, "color": "#f59e0b" }, { "from": 1500.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }
+  { "title": "Total System Earnings History", "path": "financials-total-system-earnings", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_daily", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_weekly", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_monthly", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings (Last 10 Years)" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings (All-Time)" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }] }] }, { "title": "Solar-Only Earnings History", "path": "financials-solar-only-earnings", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_daily", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_weekly", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_monthly", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }] }] }, { "title": "Battery Added Value History", "path": "financials-battery-added-value", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_daily", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_weekly", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_monthly", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }] }] }, { "title": "Effective Cost History", "path": "financials-effective-cost", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_daily", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 0.5, "color": "#10b981" }, { "from": 0.5, "to": 1.5, "color": "#f59e0b" }, { "from": 1.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_weekly", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 3.5, "color": "#10b981" }, { "from": 3.5, "to": 10.5, "color": "#f59e0b" }, { "from": 10.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_monthly", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 15.0, "color": "#10b981" }, { "from": 15.0, "to": 45.0, "color": "#f59e0b" }, { "from": 45.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 182.5, "color": "#10b981" }, { "from": 182.5, "to": 547.5, "color": "#f59e0b" }, { "from": 547.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 500.0, "color": "#10b981" }, { "from": 500.0, "to": 1500.0, "color": "#f59e0b" }, { "from": 1500.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }] }] }, { "title": "Net Bill History", "path": "financials-net-bill", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_daily", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 0.5, "color": "#10b981" }, { "from": 0.5, "to": 1.5, "color": "#f59e0b" }, { "from": 1.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_daily_days'].state) <= 7 : parseInt(states['input_select.chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_weekly", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 3.5, "color": "#10b981" }, { "from": 3.5, "to": 10.5, "color": "#f59e0b" }, { "from": 10.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_weekly_weeks'].state) <= 8 : parseInt(states['input_select.chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_monthly", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('input_select.chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('input_select.chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('input_select.chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('input_select.chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "input_select.select_option", "target": { "entity_id": "input_select.chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["input_select.chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['input_select.chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 15.0, "color": "#10b981" }, { "from": 15.0, "to": 45.0, "color": "#f59e0b" }, { "from": 45.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['input_select.chart_monthly_months'].state) <= 6 : parseInt(states['input_select.chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 182.5, "color": "#10b981" }, { "from": 182.5, "to": 547.5, "color": "#f59e0b" }, { "from": 547.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }, { "type": "conditional", "conditions": [{ "entity": "input_select.financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 500.0, "color": "#10b981" }, { "from": 500.0, "to": 1500.0, "color": "#f59e0b" }, { "from": 1500.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "year" } }] } }] }] }
 ];
 
 const getPrefix = (states) => {
