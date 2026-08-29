@@ -14,9 +14,11 @@ from .const import (
     CONF_FEED_IN_PENALTY_PERCENT,
     CONF_PREFIX,
     CONF_TRACKED_DEVICES,
+    CONF_GENERATE_RATE_SENSORS,
     DEFAULT_FEED_IN_PENALTY,
     DEFAULT_FEED_IN_PENALTY_PERCENT,
     DEFAULT_PREFIX,
+    DEFAULT_GENERATE_RATE_SENSORS,
 )
 
 class SolarBatteryFinancialsOptionsFlowHandler(config_entries.OptionsFlowWithConfigEntry):
@@ -91,6 +93,12 @@ class SolarBatteryFinancialsOptionsFlowHandler(config_entries.OptionsFlowWithCon
             schema_dict[vol.Optional(CONF_PREFIX, default=prefix)] = str
         else:
             schema_dict[vol.Optional(CONF_PREFIX, default=DEFAULT_PREFIX)] = str
+
+        generate_rate_sensors = config.get(CONF_GENERATE_RATE_SENSORS)
+        if generate_rate_sensors is not None:
+            schema_dict[vol.Optional(CONF_GENERATE_RATE_SENSORS, default=generate_rate_sensors)] = bool
+        else:
+            schema_dict[vol.Optional(CONF_GENERATE_RATE_SENSORS, default=DEFAULT_GENERATE_RATE_SENSORS)] = bool
 
         tracked_devices = config.get(CONF_TRACKED_DEVICES, [])
         schema_dict[vol.Optional(CONF_TRACKED_DEVICES, default=tracked_devices)] = selector.EntitySelector(
@@ -199,6 +207,7 @@ class SolarBatteryFinancialsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN)
                 vol.Optional(CONF_FEED_IN_PENALTY, default=DEFAULT_FEED_IN_PENALTY): vol.Coerce(float),
                 vol.Optional(CONF_FEED_IN_PENALTY_PERCENT, default=DEFAULT_FEED_IN_PENALTY_PERCENT): vol.Coerce(float),
                 vol.Optional(CONF_PREFIX, default=DEFAULT_PREFIX): str,
+                vol.Optional(CONF_GENERATE_RATE_SENSORS, default=DEFAULT_GENERATE_RATE_SENSORS): bool,
                 vol.Optional(CONF_TRACKED_DEVICES, default=[]): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", multiple=True)
                 ),
