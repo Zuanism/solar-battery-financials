@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * EXACT 1:1 Golden Reference Clone (Generated from dashboard_view.yaml)
  */
-console.info("⚡ SBF Strategy JS loaded (v5.17 Generic)");
+console.info("⚡ SBF Strategy JS loaded (v5.18 Generic)");
 const GOLDEN_VIEWS = [
   {
     type: "sections",
@@ -2210,7 +2210,8 @@ const GOLDEN_VIEWS = [
                       name: "Template Device",
                       type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "year" },
+                      statistics: { type: "change", period: "month" },
+                      group_by: { func: "sum", duration: "1y" }
                     },
                   ],
                 },
@@ -2263,7 +2264,8 @@ const GOLDEN_VIEWS = [
                       name: "Template Device (Energy)",
                       unit: " kWh", type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "year" },
+                      statistics: { type: "change", period: "month" },
+                      group_by: { func: "sum", duration: "1y" }
                     },
                   ],
                 },
@@ -2371,7 +2373,8 @@ const GOLDEN_VIEWS = [
                       name: "Template Device",
                       type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "year" },
+                      statistics: { type: "change", period: "month" },
+                      group_by: { func: "sum", duration: "1y" }
                     },
                   ],
                 },
@@ -2424,7 +2427,8 @@ const GOLDEN_VIEWS = [
                       name: "Template Device (Energy)",
                       unit: " kWh", type: "column",
                       show: { datalabels: true },
-                      statistics: { type: "change", period: "year" },
+                      statistics: { type: "change", period: "month" },
+                      group_by: { func: "sum", duration: "1y" }
                     },
                   ],
                 },
