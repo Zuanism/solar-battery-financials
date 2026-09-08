@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * EXACT 1:1 Golden Reference Clone (Generated from dashboard_view.yaml)
  */
-console.info("⚡ SBF Strategy JS loaded (v5.18 Generic)");
+console.info("⚡ SBF Strategy JS loaded (v5.19 Generic)");
 const GOLDEN_VIEWS = [
   {
     type: "sections",
@@ -103,7 +103,7 @@ const GOLDEN_VIEWS = [
         cards: [
           {
             type: "heading",
-            heading: "Electricity Groups",
+            heading: "Main devices",
             icon: "mdi:domain",
           },
           {
@@ -938,7 +938,7 @@ const GOLDEN_VIEWS = [
               cards: [
                 {
                   type: "heading",
-                  heading: "Electricity Groups",
+                  heading: "Main devices",
                   icon: "mdi:domain",
                 },
                 {
@@ -1012,7 +1012,7 @@ const GOLDEN_VIEWS = [
               cards: [
                 {
                   type: "heading",
-                  heading: "Electricity Groups",
+                  heading: "Main devices",
                   icon: "mdi:domain",
                 },
                 {
@@ -1089,7 +1089,7 @@ const GOLDEN_VIEWS = [
               cards: [
                 {
                   type: "heading",
-                  heading: "Electricity Groups",
+                  heading: "Main devices",
                   icon: "mdi:domain",
                 },
                 {
@@ -1163,7 +1163,7 @@ const GOLDEN_VIEWS = [
               cards: [
                 {
                   type: "heading",
-                  heading: "Electricity Groups",
+                  heading: "Main devices",
                   icon: "mdi:domain",
                 },
                 {
@@ -1240,7 +1240,7 @@ const GOLDEN_VIEWS = [
               cards: [
                 {
                   type: "heading",
-                  heading: "Electricity Groups",
+                  heading: "Main devices",
                   icon: "mdi:domain",
                 },
                 {
@@ -2162,10 +2162,24 @@ const GOLDEN_VIEWS = [
               type: "vertical-stack",
               cards: [
                 {
+                  type: "custom:mushroom-template-card",
+                  entity: "sensor.sbf2_dev_template_device_cost_rate_yearly",
+                  primary: "Template Device",
+                  icon_type: "none",
+                  tap_action: {
+                    action: "more-info",
+                    entity: "sensor.sbf2_dev_template_device_cost_rate_yearly",
+                  },
+                  card_mod: {
+                    style:
+                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
+                  },
+                },
+                {
                   type: "custom:apexcharts-card",
                   graph_span: "10y",
                   span: { end: "day" },
-                  header: { show: false, title: "Kitchen (Last 10 Years)" },
+                  header: { show: false, title: "Template Device (Last 10 Years)" },
                   apex_config: {
                     yaxis: { show: true, title: { text: "Cost (€)" } },
                     chart: {
@@ -2325,10 +2339,24 @@ const GOLDEN_VIEWS = [
               type: "vertical-stack",
               cards: [
                 {
+                  type: "custom:mushroom-template-card",
+                  entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
+                  primary: "Template Device",
+                  icon_type: "none",
+                  tap_action: {
+                    action: "more-info",
+                    entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
+                  },
+                  card_mod: {
+                    style:
+                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
+                  },
+                },
+                {
                   type: "custom:apexcharts-card",
                   graph_span: "10y",
                   span: { end: "day" },
-                  header: { show: false, title: "Kitchen (All-Time)" },
+                  header: { show: false, title: "Template Device (All-Time)" },
                   apex_config: {
                     yaxis: { show: true, title: { text: "Cost (€)" } },
                     chart: {
@@ -3122,20 +3150,6 @@ class SbfDashboardStrategy extends HTMLElement {
             parsedSub.cards[0].cards
           ) {
             parsedSub.cards[0].cards.forEach((condCard) => {
-              console.log(
-                "Checking condCard:",
-                condCard.type,
-                condCard.card ? condCard.card.type : "none",
-                "Conditions:",
-                condCard.conditions ? condCard.conditions[0].state : "none",
-              );
-              console.log(
-                "Checking condCard:",
-                condCard.type,
-                condCard.card ? condCard.card.type : "none",
-                "Conditions:",
-                condCard.conditions ? condCard.conditions[0].state : "none",
-              );
               if (condCard.type === "conditional" && condCard.card) {
                 if (
                   condCard.card.type === "custom:apexcharts-card" ||
@@ -3145,22 +3159,19 @@ class SbfDashboardStrategy extends HTMLElement {
                     type: "vertical-stack",
                     cards: [condCard.card],
                   };
-                  console.log(
-                    "MUTATED COND CARD!",
-                    condCard.conditions[0].state,
-                  );
-                  console.log(
-                    "MUTATED COND CARD!",
-                    condCard.conditions[0].state,
-                  );
                 }
                 if (condCard.card.cards) {
-                  let insertIndex = Math.max(0, condCard.card.cards.length - 1);
+                  let insertIndex = 0;
+                  const titleIndex = condCard.card.cards.findIndex(
+                    (c) => c.type === "custom:mushroom-template-card",
+                  );
                   const pillsIndex = condCard.card.cards.findIndex(
                     (c) => c.type === "custom:mushroom-chips-card",
                   );
                   if (pillsIndex !== -1) {
                     insertIndex = pillsIndex;
+                  } else if (titleIndex !== -1) {
+                    insertIndex = titleIndex + 1;
                   }
                   condCard.card.cards.splice(insertIndex, 0, {
                     type: "custom:mushroom-chips-card",
@@ -3311,12 +3322,17 @@ class SbfDashboardStrategy extends HTMLElement {
                     ],
                   };
                 } else if (condCard.card.cards) {
-                  let insertIndex = Math.max(0, condCard.card.cards.length - 1);
+                  let insertIndex = 0;
+                  const titleIndex = condCard.card.cards.findIndex(
+                    (c) => c.type === "custom:mushroom-template-card",
+                  );
                   const pillsIndex = condCard.card.cards.findIndex(
                     (c) => c.type === "custom:mushroom-chips-card",
                   );
                   if (pillsIndex !== -1) {
                     insertIndex = pillsIndex;
+                  } else if (titleIndex !== -1) {
+                    insertIndex = titleIndex + 1;
                   }
                   condCard.card.cards.splice(
                     insertIndex,
