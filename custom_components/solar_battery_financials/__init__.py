@@ -6,7 +6,7 @@ from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "select"]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Solar & Battery Financials component."""
