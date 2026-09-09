@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.35)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.36)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -359,7 +359,7 @@ const createBarChartCard = ({
 const createYearlyStaticBarChart = ({ entity, name, yAxisTitle, thresholds, unit }) => ({
   type: "custom:apexcharts-card",
   graph_span: "10y",
-  span: { end: "day" },
+  span: { end: "year" },
   header: { show: false, title: name },
   apex_config: staticOrConfigApexConfig(yAxisTitle, thresholds, true),
   series: [makeColSeries(entity, name, null, "month", true, unit)],
@@ -396,20 +396,22 @@ const deviceRateDataGen = (devTarget, selectEntity, spanUnit, statsPeriod) =>
 const deviceYearlyRateDataGen = (devTarget) =>
   `return (async () => {
   const costId = "sensor.sbf2_${devTarget}_cost_rate_cumulative", energyId = "sensor.sbf2_${devTarget}_energy_rate_cumulative";
-  const duration = 365 * ${MS_PER_DAY}, now = new Date(), endD = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const now = new Date(), currentYear = now.getFullYear();
   const res = await hass.callWS({
     type: 'recorder/statistics_during_period',
-    start_time: new Date(now.getFullYear() - 11, 0, 1).toISOString(),
-    end_time: endD.toISOString(),
+    start_time: new Date(currentYear - 11, 0, 1).toISOString(),
+    end_time: new Date(currentYear + 1, 0, 1).toISOString(),
     statistic_ids: [costId, energyId],
     period: 'month',
     types: ['change']
   });
   const costs = res?.[costId] || [], energies = res?.[energyId] || [], energyMap = new Map();
   energies.forEach(e => energyMap.set(new Date(e.start).getTime(), e.change));
-  const buckets = [], endTime = endD.getTime();
+  const buckets = [];
   for (let k = 0; k < 12; k++) {
-    const bEnd = endTime - k * duration, bStart = bEnd - duration;
+    const y = currentYear - k;
+    const bStart = new Date(y, 0, 1).getTime();
+    const bEnd = new Date(y + 1, 0, 1).getTime();
     let bCost = 0, bKwh = 0, hasData = false;
     costs.forEach(c => {
       const ts = new Date(c.start).getTime();
@@ -465,7 +467,7 @@ const createDeviceYearlyRateChart = (devTarget, label) =>
   conditionalCumulativeChart(devTarget, {
     type: "custom:apexcharts-card",
     graph_span: "10y",
-    span: { end: "day" },
+    span: { end: "year" },
     header: { show: false, title: `${label} (EUR/kWh)` },
     apex_config: staticOrConfigApexConfig("EUR/kWh", [0.15, 0.3], true, EVAL_RATE_FORMATTER),
     series: [
@@ -657,7 +659,7 @@ const createSystemSubviewTab = (t, cfg, th) => {
           {
             type: "custom:apexcharts-card",
             graph_span: "10y",
-            span: { end: "day" },
+            span: { end: "year" },
             header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
             apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
             series,
