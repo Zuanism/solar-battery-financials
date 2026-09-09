@@ -13,7 +13,6 @@ from .const import (
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
-    CONF_GENERATE_RATE_SENSORS,
     CONF_GRID_SENSOR,
     CONF_INVERTER_AC_SENSOR,
     CONF_PREFIX,
@@ -22,7 +21,6 @@ from .const import (
     CONF_TRACKED_DEVICES,
     DEFAULT_FEED_IN_PENALTY,
     DEFAULT_FEED_IN_PENALTY_PERCENT,
-    DEFAULT_GENERATE_RATE_SENSORS,
     DEFAULT_PREFIX,
     DOMAIN,
 )
@@ -79,7 +77,6 @@ def build_config_schema(config: dict[str, Any] | None = None) -> vol.Schema:
         _float_field(cfg, CONF_FEED_IN_PENALTY, DEFAULT_FEED_IN_PENALTY),
         _float_field(cfg, CONF_FEED_IN_PENALTY_PERCENT, DEFAULT_FEED_IN_PENALTY_PERCENT),
         _str_field(cfg, CONF_PREFIX, DEFAULT_PREFIX),
-        _bool_field(cfg, CONF_GENERATE_RATE_SENSORS, DEFAULT_GENERATE_RATE_SENSORS),
         _entity_field(cfg, CONF_TRACKED_DEVICES, multiple=True),
     ]
     return vol.Schema(dict(fields))

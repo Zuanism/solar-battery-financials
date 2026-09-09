@@ -20,7 +20,6 @@ from .const import (
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
-    CONF_GENERATE_RATE_SENSORS,
     CONF_GRID_SENSOR,
     CONF_INVERTER_AC_SENSOR,
     CONF_PREFIX,
@@ -30,7 +29,6 @@ from .const import (
 )
 from .manager import FinancialManager
 from .sensor_entities import (
-    AverageRateSensor,
     BatteryAddedValueRateSensor,
     CumulativeSensor,
     ManagedSensor,
@@ -67,7 +65,6 @@ async def async_setup_entry(
     tracked_devices = config.get(CONF_TRACKED_DEVICES, [])
     device_names = config.get("device_names", {})
     sub_devices = config.get("sub_devices", [])
-    generate_rate_sensors = config.get(CONF_GENERATE_RATE_SENSORS, True)
 
     manager = FinancialManager(
         hass,
@@ -94,14 +91,10 @@ async def async_setup_entry(
     sensors.extend(
         _create_cumulative_and_period_sensors(manager, prefix, sys_id, sys_name, house_id, house_name)
     )
-    sensors.extend(
-        _create_house_and_untracked_sensors(
-            manager, prefix, house_id, house_name, generate_rate_sensors
-        )
-    )
+    sensors.extend(_create_house_and_untracked_sensors(manager, prefix, house_id, house_name))
 
     dev_sensors, expected_unique_ids = _create_device_sensors(
-        manager, prefix, tracked_devices, device_names, generate_rate_sensors
+        manager, prefix, tracked_devices, device_names
     )
     sensors.extend(dev_sensors)
 
@@ -207,7 +200,6 @@ def _create_house_and_untracked_sensors(
     prefix: str,
     house_id: str,
     house_name: str,
-    generate_rate_sensors: bool,
 ) -> list[SensorEntity]:
     """Create Total System and Untracked cost/energy sensors."""
     sensors: list[SensorEntity] = []
@@ -222,13 +214,6 @@ def _create_house_and_untracked_sensors(
         SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
     )
     sensors.extend([ts_cost_cum, ts_energy_cum])
-    if generate_rate_sensors:
-        sensors.append(
-            AverageRateSensor(
-                manager, prefix, "Total System Avg Rate Cumulative", ts_cost_cum, ts_energy_cum,
-                "total_system_avg_rate_cumulative", device_id_suffix=house_id, device_name=house_name,
-            )
-        )
 
     for period in PERIODS:
         cap = period.capitalize()
@@ -241,13 +226,6 @@ def _create_house_and_untracked_sensors(
             period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
         )
         sensors.extend([ts_cost_p, ts_energy_p])
-        if generate_rate_sensors:
-            sensors.append(
-                AverageRateSensor(
-                    manager, prefix, f"Total System Avg Rate {cap}", ts_cost_p, ts_energy_p,
-                    f"total_system_avg_rate_{period}", device_id_suffix=house_id, device_name=house_name,
-                )
-            )
 
     # Untracked
     sensors.append(
@@ -265,13 +243,6 @@ def _create_house_and_untracked_sensors(
         SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
     )
     sensors.extend([ut_cost_cum, ut_energy_cum])
-    if generate_rate_sensors:
-        sensors.append(
-            AverageRateSensor(
-                manager, prefix, "Untracked Avg Rate Cumulative", ut_cost_cum, ut_energy_cum,
-                "untracked_avg_rate_cumulative", device_id_suffix=house_id, device_name=house_name,
-            )
-        )
 
     for period in PERIODS:
         cap = period.capitalize()
@@ -284,13 +255,6 @@ def _create_house_and_untracked_sensors(
             period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
         )
         sensors.extend([ut_cost_p, ut_energy_p])
-        if generate_rate_sensors:
-            sensors.append(
-                AverageRateSensor(
-                    manager, prefix, f"Untracked Avg Rate {cap}", ut_cost_p, ut_energy_p,
-                    f"untracked_avg_rate_{period}", device_id_suffix=house_id, device_name=house_name,
-                )
-            )
 
     return sensors
 
@@ -300,9 +264,8 @@ def _create_device_sensors(
     prefix: str,
     tracked_devices: list[str],
     device_names: dict[str, str],
-    generate_rate_sensors: bool,
 ) -> tuple[list[SensorEntity], set[str]]:
-    """Create per-device cost, energy, and average rate sensors."""
+    """Create per-device cost and energy sensors."""
     sensors: list[SensorEntity] = []
     expected_unique_ids: set[str] = set()
 
@@ -321,11 +284,9 @@ def _create_device_sensors(
         # Track unique IDs for registry cleanup
         expected_unique_ids.add(f"{prefix}{base_id}_cost_rate_cumulative")
         expected_unique_ids.add(f"{prefix}{base_id}_energy_rate_cumulative")
-        expected_unique_ids.add(f"{prefix}{base_id}_avg_rate_cumulative")
         for period in PERIODS:
             expected_unique_ids.add(f"{prefix}{base_id}_cost_rate_{period}")
             expected_unique_ids.add(f"{prefix}{base_id}_energy_rate_{period}")
-            expected_unique_ids.add(f"{prefix}{base_id}_avg_rate_{period}")
 
         # Cumulative
         dev_cost_cum = CumulativeSensor(
@@ -339,14 +300,6 @@ def _create_device_sensors(
             entity_id_base=f"{base_id}_energy_rate", source_entity=device_id,
         )
         sensors.extend([dev_cost_cum, dev_energy_cum])
-        if generate_rate_sensors:
-            sensors.append(
-                AverageRateSensor(
-                    manager, prefix, f"{name_prefix} Avg Rate Cumulative", dev_cost_cum, dev_energy_cum,
-                    f"{base_id}_avg_rate_cumulative", device_id_suffix=dev_id, device_name=dev_name,
-                    source_entity=device_id,
-                )
-            )
 
         # Periodic
         for period in PERIODS:
@@ -362,14 +315,6 @@ def _create_device_sensors(
                 entity_id_base=f"{base_id}_energy_rate", source_entity=device_id,
             )
             sensors.extend([dev_cost_p, dev_energy_p])
-            if generate_rate_sensors:
-                sensors.append(
-                    AverageRateSensor(
-                        manager, prefix, f"{name_prefix} Avg Rate {cap}", dev_cost_p, dev_energy_p,
-                        f"{base_id}_avg_rate_{period}", device_id_suffix=dev_id, device_name=dev_name,
-                        source_entity=device_id,
-                    )
-                )
 
     return sensors, expected_unique_ids
 
@@ -377,11 +322,17 @@ def _create_device_sensors(
 def _cleanup_orphaned_entities(
     hass: HomeAssistant, entry_id: str, prefix: str, expected_unique_ids: set[str]
 ) -> None:
-    """Remove orphaned device entities from the entity registry."""
+    """Remove orphaned device and obsolete rate entities from the entity registry."""
     registry = er.async_get(hass)
     entries = er.async_entries_for_config_entry(registry, entry_id)
     for entry in entries:
-        if f"{prefix}dev_" in entry.unique_id and entry.unique_id not in expected_unique_ids:
+        if "_avg_rate_" in entry.unique_id:
+            _LOGGER.info(
+                "Removing obsolete avg rate entity from Solar Battery Financials: %s",
+                entry.entity_id,
+            )
+            registry.async_remove(entry.entity_id)
+        elif f"{prefix}dev_" in entry.unique_id and entry.unique_id not in expected_unique_ids:
             _LOGGER.info(
                 "Removing orphaned device entity from Solar Battery Financials: %s",
                 entry.entity_id,

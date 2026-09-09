@@ -1,7 +1,7 @@
 """Sensor entities for Solar & Battery Financials.
 
-Defines the base sensor types (ManagedSensor, CumulativeSensor, PeriodSensor,
-AverageRateSensor) and specialized rate/earnings sensor classes.
+Defines the base sensor types (ManagedSensor, CumulativeSensor, PeriodSensor)
+and specialized rate/earnings sensor classes.
 """
 from __future__ import annotations
 
@@ -401,49 +401,6 @@ class PeriodSensor(SbfSensorBase, RestoreEntity):
             self._state += added
 
         self._previous_rate = self.manager.values[self._source_key]
-        self.async_write_ha_state()
-
-    @property
-    def native_value(self) -> float:
-        return round(self._state, 4)
-
-
-class AverageRateSensor(SbfSensorBase):
-    """Sensor computing the average rate (€/kWh) as derived from Cost / Energy sensors."""
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        name: str,
-        cost_sensor: SensorEntity,
-        energy_sensor: SensorEntity,
-        key_suffix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-        source_entity: str | None = None,
-    ) -> None:
-        super().__init__(manager, prefix, name, device_id_suffix, device_name, source_entity)
-        self._attr_unique_id = f"{prefix}{key_suffix}"
-        self.entity_id = f"sensor.{prefix}{key_suffix}"
-        self._attr_native_unit_of_measurement = "EUR/kWh"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._cost_sensor = cost_sensor
-        self._energy_sensor = energy_sensor
-        self._state = 0.0
-
-    async def async_added_to_hass(self) -> None:
-        self.manager.listeners.append(self._handle_update)
-        self._handle_update(0.0)
-
-    @callback
-    def _handle_update(self, delta_hours: float) -> None:
-        cost = getattr(self._cost_sensor, "_state", 0.0)
-        energy = getattr(self._energy_sensor, "_state", 0.0)
-        if energy > 0:
-            self._state = cost / energy
-        else:
-            self._state = 0.0
         self.async_write_ha_state()
 
     @property
