@@ -1,32 +1,58 @@
+"""Sensor platform setup for Solar & Battery Financials.
+
+Orchestrates creation of rate, cumulative, periodic, house, and device sensors,
+and manages registry cleanup for removed devices.
+"""
+from __future__ import annotations
+
 import logging
-from datetime import timedelta
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.helpers import entity_registry as er
-from homeassistant.core import HomeAssistant, callback
-import homeassistant.util.dt as dt_util
 import re
+from typing import Any
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    DOMAIN,
-    CONF_GRID_SENSOR,
-    CONF_SOLAR_SENSOR,
     CONF_BATTERY_SENSOR,
-    CONF_PRICE_SENSOR,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
-    CONF_PREFIX,
-    CONF_INVERTER_AC_SENSOR,
-    CONF_TRACKED_DEVICES,
     CONF_GENERATE_RATE_SENSORS,
+    CONF_GRID_SENSOR,
+    CONF_INVERTER_AC_SENSOR,
+    CONF_PREFIX,
+    CONF_PRICE_SENSOR,
+    CONF_SOLAR_SENSOR,
+    CONF_TRACKED_DEVICES,
+)
+from .manager import FinancialManager
+from .sensor_entities import (
+    AverageRateSensor,
+    BatteryAddedValueRateSensor,
+    CumulativeSensor,
+    ManagedSensor,
+    NetGridCostRateSensor,
+    PeriodSensor,
+    SolarOnlyEarningsRateSensor,
+    SystemEarningsRateSensor,
+    TotalCostRateSensor,
+    TotalPowerSensor,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the sensors."""
+PERIODS = ["daily", "weekly", "monthly", "yearly"]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the Solar & Battery Financials sensors."""
     config = {**config_entry.data, **config_entry.options}
 
     grid_sensor = config[CONF_GRID_SENSOR]
@@ -44,7 +70,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     generate_rate_sensors = config.get(CONF_GENERATE_RATE_SENSORS, True)
 
     manager = FinancialManager(
-        hass, grid_sensor, solar_sensor, battery_sensor, price_sensor, export_price_sensor, penalty, penalty_pct, inverter_ac_sensor, tracked_devices, sub_devices, device_names
+        hass,
+        grid_sensor,
+        solar_sensor,
+        battery_sensor,
+        price_sensor,
+        export_price_sensor,
+        penalty,
+        penalty_pct,
+        inverter_ac_sensor,
+        tracked_devices,
+        sub_devices,
+        device_names,
     )
 
     sys_id = f"{prefix}system_financials"
@@ -52,7 +89,38 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     house_id = f"{prefix}house_untracked"
     house_name = "House & Untracked"
 
-    sensors = [
+    sensors: list[SensorEntity] = []
+    sensors.extend(_create_rate_sensors(manager, prefix, sys_id, sys_name, house_id, house_name))
+    sensors.extend(
+        _create_cumulative_and_period_sensors(manager, prefix, sys_id, sys_name, house_id, house_name)
+    )
+    sensors.extend(
+        _create_house_and_untracked_sensors(
+            manager, prefix, house_id, house_name, generate_rate_sensors
+        )
+    )
+
+    dev_sensors, expected_unique_ids = _create_device_sensors(
+        manager, prefix, tracked_devices, device_names, generate_rate_sensors
+    )
+    sensors.extend(dev_sensors)
+
+    _cleanup_orphaned_entities(hass, config_entry.entry_id, prefix, expected_unique_ids)
+
+    async_add_entities(sensors)
+    await manager.async_start()
+
+
+def _create_rate_sensors(
+    manager: FinancialManager,
+    prefix: str,
+    sys_id: str,
+    sys_name: str,
+    house_id: str,
+    house_name: str,
+) -> list[SensorEntity]:
+    """Create instantaneous rate sensors for power, costs, and earnings."""
+    return [
         TotalPowerSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
         TotalCostRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
         NetGridCostRateSensor(manager, prefix, device_id_suffix=house_id, device_name=house_name),
@@ -60,633 +128,262 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         SolarOnlyEarningsRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
         BatteryAddedValueRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
     ]
-    
-    sensors.extend([
-        CumulativeSensor(manager, prefix, "System Earnings Cumulative", "system_earnings_rate", "EUR", device_id_suffix=sys_id, device_name=sys_name),
-        CumulativeSensor(manager, prefix, "Solar Only Earnings Cumulative", "solar_only_earnings_rate", "EUR", device_id_suffix=sys_id, device_name=sys_name),
-        CumulativeSensor(manager, prefix, "Battery Added Value Cumulative", "battery_added_value_rate", "EUR", device_id_suffix=sys_id, device_name=sys_name),
-        CumulativeSensor(manager, prefix, "Net Grid Cost Cumulative", "net_grid_cost_rate", "EUR", device_id_suffix=house_id, device_name=house_name),
-        CumulativeSensor(manager, prefix, "Net Grid Energy Cumulative", "net_grid_energy_rate", "kWh", SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name),
-    ])
 
-    for period in ["daily", "weekly", "monthly", "yearly"]:
+
+def _create_cumulative_and_period_sensors(
+    manager: FinancialManager,
+    prefix: str,
+    sys_id: str,
+    sys_name: str,
+    house_id: str,
+    house_name: str,
+) -> list[SensorEntity]:
+    """Create cumulative and periodic sensors for system earnings and grid metrics."""
+    sensors: list[SensorEntity] = [
+        CumulativeSensor(
+            manager, prefix, "System Earnings Cumulative", "system_earnings_rate", "EUR",
+            device_id_suffix=sys_id, device_name=sys_name,
+        ),
+        CumulativeSensor(
+            manager, prefix, "Solar Only Earnings Cumulative", "solar_only_earnings_rate", "EUR",
+            device_id_suffix=sys_id, device_name=sys_name,
+        ),
+        CumulativeSensor(
+            manager, prefix, "Battery Added Value Cumulative", "battery_added_value_rate", "EUR",
+            device_id_suffix=sys_id, device_name=sys_name,
+        ),
+        CumulativeSensor(
+            manager, prefix, "Net Grid Cost Cumulative", "net_grid_cost_rate", "EUR",
+            device_id_suffix=house_id, device_name=house_name,
+        ),
+        CumulativeSensor(
+            manager, prefix, "Net Grid Energy Cumulative", "net_grid_energy_rate", "kWh",
+            SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
+        ),
+    ]
+
+    for period in PERIODS:
+        cap_period = period.capitalize()
         sensors.extend([
-            PeriodSensor(manager, prefix, f"System Earnings {period.capitalize()}", "system_earnings_rate", "EUR", period, device_id_suffix=sys_id, device_name=sys_name),
-            PeriodSensor(manager, prefix, f"Solar Only Earnings {period.capitalize()}", "solar_only_earnings_rate", "EUR", period, device_id_suffix=sys_id, device_name=sys_name),
-            PeriodSensor(manager, prefix, f"Battery Added Value {period.capitalize()}", "battery_added_value_rate", "EUR", period, device_id_suffix=sys_id, device_name=sys_name),
-            PeriodSensor(manager, prefix, f"Net Grid Cost {period.capitalize()}", "net_grid_cost_rate", "EUR", period, device_id_suffix=house_id, device_name=house_name),
-            PeriodSensor(manager, prefix, f"Net Grid Energy {period.capitalize()}", "net_grid_energy_rate", "kWh", period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name),
+            PeriodSensor(
+                manager, prefix, f"System Earnings {cap_period}", "system_earnings_rate", "EUR",
+                period, device_id_suffix=sys_id, device_name=sys_name,
+            ),
+            PeriodSensor(
+                manager, prefix, f"Solar Only Earnings {cap_period}", "solar_only_earnings_rate", "EUR",
+                period, device_id_suffix=sys_id, device_name=sys_name,
+            ),
+            PeriodSensor(
+                manager, prefix, f"Battery Added Value {cap_period}", "battery_added_value_rate", "EUR",
+                period, device_id_suffix=sys_id, device_name=sys_name,
+            ),
+            PeriodSensor(
+                manager, prefix, f"Net Grid Cost {cap_period}", "net_grid_cost_rate", "EUR",
+                period, device_id_suffix=house_id, device_name=house_name,
+            ),
+            PeriodSensor(
+                manager, prefix, f"Net Grid Energy {cap_period}", "net_grid_energy_rate", "kWh",
+                period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
+            ),
         ])
 
-    sensors.append(PeriodSensor(manager, prefix, "Inverter Losses Cost Daily", "inverter_loss_cost_rate", "EUR", "daily", SensorDeviceClass.MONETARY, device_id_suffix=sys_id, device_name=sys_name))
-    sensors.append(ManagedSensor(manager, prefix, "Effective Price", "effective_price", "EUR/kWh", SensorDeviceClass.MONETARY, house_id, house_name))
-    
+    sensors.append(
+        PeriodSensor(
+            manager, prefix, "Inverter Losses Cost Daily", "inverter_loss_cost_rate", "EUR",
+            "daily", SensorDeviceClass.MONETARY, device_id_suffix=sys_id, device_name=sys_name,
+        )
+    )
+    sensors.append(
+        ManagedSensor(
+            manager, prefix, "Effective Price", "effective_price", "EUR/kWh",
+            SensorDeviceClass.MONETARY, house_id, house_name,
+        )
+    )
+    return sensors
+
+
+def _create_house_and_untracked_sensors(
+    manager: FinancialManager,
+    prefix: str,
+    house_id: str,
+    house_name: str,
+    generate_rate_sensors: bool,
+) -> list[SensorEntity]:
+    """Create Total System and Untracked cost/energy sensors."""
+    sensors: list[SensorEntity] = []
+
     # Total System
-    ts_cost_cum = CumulativeSensor(manager, prefix, "Total System Cost Cumulative", "total_system_cost_rate", "EUR", device_id_suffix=house_id, device_name=house_name)
-    ts_energy_cum = CumulativeSensor(manager, prefix, "Total System Energy Cumulative", "total_system_energy_rate", "kWh", SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name)
+    ts_cost_cum = CumulativeSensor(
+        manager, prefix, "Total System Cost Cumulative", "total_system_cost_rate", "EUR",
+        device_id_suffix=house_id, device_name=house_name,
+    )
+    ts_energy_cum = CumulativeSensor(
+        manager, prefix, "Total System Energy Cumulative", "total_system_energy_rate", "kWh",
+        SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
+    )
     sensors.extend([ts_cost_cum, ts_energy_cum])
     if generate_rate_sensors:
-        sensors.append(AverageRateSensor(manager, prefix, "Total System Avg Rate Cumulative", ts_cost_cum, ts_energy_cum, "total_system_avg_rate_cumulative", device_id_suffix=house_id, device_name=house_name))
-    
-    for period in ["daily", "weekly", "monthly", "yearly"]:
-        ts_cost_p = PeriodSensor(manager, prefix, f"Total System Cost {period.capitalize()}", "total_system_cost_rate", "EUR", period, device_id_suffix=house_id, device_name=house_name)
-        ts_energy_p = PeriodSensor(manager, prefix, f"Total System Energy {period.capitalize()}", "total_system_energy_rate", "kWh", period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name)
+        sensors.append(
+            AverageRateSensor(
+                manager, prefix, "Total System Avg Rate Cumulative", ts_cost_cum, ts_energy_cum,
+                "total_system_avg_rate_cumulative", device_id_suffix=house_id, device_name=house_name,
+            )
+        )
+
+    for period in PERIODS:
+        cap = period.capitalize()
+        ts_cost_p = PeriodSensor(
+            manager, prefix, f"Total System Cost {cap}", "total_system_cost_rate", "EUR",
+            period, device_id_suffix=house_id, device_name=house_name,
+        )
+        ts_energy_p = PeriodSensor(
+            manager, prefix, f"Total System Energy {cap}", "total_system_energy_rate", "kWh",
+            period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
+        )
         sensors.extend([ts_cost_p, ts_energy_p])
         if generate_rate_sensors:
-            sensors.append(AverageRateSensor(manager, prefix, f"Total System Avg Rate {period.capitalize()}", ts_cost_p, ts_energy_p, f"total_system_avg_rate_{period}", device_id_suffix=house_id, device_name=house_name))
+            sensors.append(
+                AverageRateSensor(
+                    manager, prefix, f"Total System Avg Rate {cap}", ts_cost_p, ts_energy_p,
+                    f"total_system_avg_rate_{period}", device_id_suffix=house_id, device_name=house_name,
+                )
+            )
 
     # Untracked
-    sensors.append(ManagedSensor(manager, prefix, "Untracked Power", "untracked_power", "W", SensorDeviceClass.POWER, house_id, house_name))
-    ut_cost_cum = CumulativeSensor(manager, prefix, "Untracked Cost Cumulative", "untracked_cost_rate", "EUR", device_id_suffix=house_id, device_name=house_name)
-    ut_energy_cum = CumulativeSensor(manager, prefix, "Untracked Energy Cumulative", "untracked_energy_rate", "kWh", SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name)
+    sensors.append(
+        ManagedSensor(
+            manager, prefix, "Untracked Power", "untracked_power", "W",
+            SensorDeviceClass.POWER, house_id, house_name,
+        )
+    )
+    ut_cost_cum = CumulativeSensor(
+        manager, prefix, "Untracked Cost Cumulative", "untracked_cost_rate", "EUR",
+        device_id_suffix=house_id, device_name=house_name,
+    )
+    ut_energy_cum = CumulativeSensor(
+        manager, prefix, "Untracked Energy Cumulative", "untracked_energy_rate", "kWh",
+        SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
+    )
     sensors.extend([ut_cost_cum, ut_energy_cum])
     if generate_rate_sensors:
-        sensors.append(AverageRateSensor(manager, prefix, "Untracked Avg Rate Cumulative", ut_cost_cum, ut_energy_cum, "untracked_avg_rate_cumulative", device_id_suffix=house_id, device_name=house_name))
-    
-    for period in ["daily", "weekly", "monthly", "yearly"]:
-        ut_cost_p = PeriodSensor(manager, prefix, f"Untracked Cost {period.capitalize()}", "untracked_cost_rate", "EUR", period, device_id_suffix=house_id, device_name=house_name)
-        ut_energy_p = PeriodSensor(manager, prefix, f"Untracked Energy {period.capitalize()}", "untracked_energy_rate", "kWh", period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name)
+        sensors.append(
+            AverageRateSensor(
+                manager, prefix, "Untracked Avg Rate Cumulative", ut_cost_cum, ut_energy_cum,
+                "untracked_avg_rate_cumulative", device_id_suffix=house_id, device_name=house_name,
+            )
+        )
+
+    for period in PERIODS:
+        cap = period.capitalize()
+        ut_cost_p = PeriodSensor(
+            manager, prefix, f"Untracked Cost {cap}", "untracked_cost_rate", "EUR",
+            period, device_id_suffix=house_id, device_name=house_name,
+        )
+        ut_energy_p = PeriodSensor(
+            manager, prefix, f"Untracked Energy {cap}", "untracked_energy_rate", "kWh",
+            period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
+        )
         sensors.extend([ut_cost_p, ut_energy_p])
         if generate_rate_sensors:
-            sensors.append(AverageRateSensor(manager, prefix, f"Untracked Avg Rate {period.capitalize()}", ut_cost_p, ut_energy_p, f"untracked_avg_rate_{period}", device_id_suffix=house_id, device_name=house_name))
+            sensors.append(
+                AverageRateSensor(
+                    manager, prefix, f"Untracked Avg Rate {cap}", ut_cost_p, ut_energy_p,
+                    f"untracked_avg_rate_{period}", device_id_suffix=house_id, device_name=house_name,
+                )
+            )
 
-    expected_device_unique_ids = set()
+    return sensors
+
+
+def _create_device_sensors(
+    manager: FinancialManager,
+    prefix: str,
+    tracked_devices: list[str],
+    device_names: dict[str, str],
+    generate_rate_sensors: bool,
+) -> tuple[list[SensorEntity], set[str]]:
+    """Create per-device cost, energy, and average rate sensors."""
+    sensors: list[SensorEntity] = []
+    expected_unique_ids: set[str] = set()
+
     for device_id in tracked_devices:
         clean_id = device_id.replace("sensor.", "")
-        name_prefix = device_names.get(device_id, clean_id.replace("_power", "").replace("_", " ").title())
+        name_prefix = device_names.get(
+            device_id, clean_id.replace("_power", "").replace("_", " ").title()
+        )
         safe_key = clean_id.replace(".", "_")
-        slugified_name = re.sub(r'[^a-z0-9]+', '_', name_prefix.lower()).strip('_')
+        slugified_name = re.sub(r"[^a-z0-9]+", "_", name_prefix.lower()).strip("_")
         base_id = f"dev_{slugified_name}"
-        
+
         dev_id = f"{prefix}dev_financials_{safe_key}"
         dev_name = f"{name_prefix} Financials"
-        
-        expected_device_unique_ids.add(f"{prefix}{base_id}_cost_rate_cumulative")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_cost_rate_daily")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_cost_rate_weekly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_cost_rate_monthly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_cost_rate_yearly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_energy_rate_cumulative")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_energy_rate_daily")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_energy_rate_weekly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_energy_rate_monthly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_energy_rate_yearly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_avg_rate_cumulative")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_avg_rate_daily")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_avg_rate_weekly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_avg_rate_monthly")
-        expected_device_unique_ids.add(f"{prefix}{base_id}_avg_rate_yearly")
-        
-        dev_cost_cum = CumulativeSensor(manager, prefix, f"{name_prefix} Cost Cumulative", f"dev_{safe_key}_cost_rate", "EUR", device_id_suffix=dev_id, device_name=dev_name, entity_id_base=f"{base_id}_cost_rate", source_entity=device_id)
-        dev_energy_cum = CumulativeSensor(manager, prefix, f"{name_prefix} Energy Cumulative", f"dev_{safe_key}_energy_rate", "kWh", SensorDeviceClass.ENERGY, device_id_suffix=dev_id, device_name=dev_name, entity_id_base=f"{base_id}_energy_rate", source_entity=device_id)
+
+        # Track unique IDs for registry cleanup
+        expected_unique_ids.add(f"{prefix}{base_id}_cost_rate_cumulative")
+        expected_unique_ids.add(f"{prefix}{base_id}_energy_rate_cumulative")
+        expected_unique_ids.add(f"{prefix}{base_id}_avg_rate_cumulative")
+        for period in PERIODS:
+            expected_unique_ids.add(f"{prefix}{base_id}_cost_rate_{period}")
+            expected_unique_ids.add(f"{prefix}{base_id}_energy_rate_{period}")
+            expected_unique_ids.add(f"{prefix}{base_id}_avg_rate_{period}")
+
+        # Cumulative
+        dev_cost_cum = CumulativeSensor(
+            manager, prefix, f"{name_prefix} Cost Cumulative", f"dev_{safe_key}_cost_rate", "EUR",
+            device_id_suffix=dev_id, device_name=dev_name, entity_id_base=f"{base_id}_cost_rate",
+            source_entity=device_id,
+        )
+        dev_energy_cum = CumulativeSensor(
+            manager, prefix, f"{name_prefix} Energy Cumulative", f"dev_{safe_key}_energy_rate", "kWh",
+            SensorDeviceClass.ENERGY, device_id_suffix=dev_id, device_name=dev_name,
+            entity_id_base=f"{base_id}_energy_rate", source_entity=device_id,
+        )
         sensors.extend([dev_cost_cum, dev_energy_cum])
         if generate_rate_sensors:
-            sensors.append(AverageRateSensor(manager, prefix, f"{name_prefix} Avg Rate Cumulative", dev_cost_cum, dev_energy_cum, f"{base_id}_avg_rate_cumulative", device_id_suffix=dev_id, device_name=dev_name, source_entity=device_id))
-        
-        for period in ["daily", "weekly", "monthly", "yearly"]:
-            dev_cost_p = PeriodSensor(manager, prefix, f"{name_prefix} Cost {period.capitalize()}", f"dev_{safe_key}_cost_rate", "EUR", period, device_id_suffix=dev_id, device_name=dev_name, entity_id_base=f"{base_id}_cost_rate", source_entity=device_id)
-            dev_energy_p = PeriodSensor(manager, prefix, f"{name_prefix} Energy {period.capitalize()}", f"dev_{safe_key}_energy_rate", "kWh", period, SensorDeviceClass.ENERGY, device_id_suffix=dev_id, device_name=dev_name, entity_id_base=f"{base_id}_energy_rate", source_entity=device_id)
+            sensors.append(
+                AverageRateSensor(
+                    manager, prefix, f"{name_prefix} Avg Rate Cumulative", dev_cost_cum, dev_energy_cum,
+                    f"{base_id}_avg_rate_cumulative", device_id_suffix=dev_id, device_name=dev_name,
+                    source_entity=device_id,
+                )
+            )
+
+        # Periodic
+        for period in PERIODS:
+            cap = period.capitalize()
+            dev_cost_p = PeriodSensor(
+                manager, prefix, f"{name_prefix} Cost {cap}", f"dev_{safe_key}_cost_rate", "EUR",
+                period, device_id_suffix=dev_id, device_name=dev_name,
+                entity_id_base=f"{base_id}_cost_rate", source_entity=device_id,
+            )
+            dev_energy_p = PeriodSensor(
+                manager, prefix, f"{name_prefix} Energy {cap}", f"dev_{safe_key}_energy_rate", "kWh",
+                period, SensorDeviceClass.ENERGY, device_id_suffix=dev_id, device_name=dev_name,
+                entity_id_base=f"{base_id}_energy_rate", source_entity=device_id,
+            )
             sensors.extend([dev_cost_p, dev_energy_p])
             if generate_rate_sensors:
-                sensors.append(AverageRateSensor(manager, prefix, f"{name_prefix} Avg Rate {period.capitalize()}", dev_cost_p, dev_energy_p, f"{base_id}_avg_rate_{period}", device_id_suffix=dev_id, device_name=dev_name, source_entity=device_id))
+                sensors.append(
+                    AverageRateSensor(
+                        manager, prefix, f"{name_prefix} Avg Rate {cap}", dev_cost_p, dev_energy_p,
+                        f"{base_id}_avg_rate_{period}", device_id_suffix=dev_id, device_name=dev_name,
+                        source_entity=device_id,
+                    )
+                )
 
+    return sensors, expected_unique_ids
+
+
+def _cleanup_orphaned_entities(
+    hass: HomeAssistant, entry_id: str, prefix: str, expected_unique_ids: set[str]
+) -> None:
+    """Remove orphaned device entities from the entity registry."""
     registry = er.async_get(hass)
-    entries = er.async_entries_for_config_entry(registry, config_entry.entry_id)
+    entries = er.async_entries_for_config_entry(registry, entry_id)
     for entry in entries:
-        if f"{prefix}dev_" in entry.unique_id and entry.unique_id not in expected_device_unique_ids:
-            _LOGGER.info("Removing orphaned device entity from Solar Battery Financials: %s", entry.entity_id)
+        if f"{prefix}dev_" in entry.unique_id and entry.unique_id not in expected_unique_ids:
+            _LOGGER.info(
+                "Removing orphaned device entity from Solar Battery Financials: %s",
+                entry.entity_id,
+            )
             registry.async_remove(entry.entity_id)
-
-    async_add_entities(sensors)
-    await manager.async_start()
-
-class FinancialManager:
-    def __init__(self, hass, grid, solar, battery, price, export_price, penalty, penalty_pct=0.0, inverter_ac=None, tracked_devices=None, sub_devices=None, device_names=None):
-        self.hass = hass
-        self.entities = [grid, price]
-        if export_price and export_price != price:
-            self.entities.append(export_price)
-        if solar:
-            self.entities.append(solar)
-        if battery:
-            self.entities.append(battery)
-        if inverter_ac:
-            self.entities.append(inverter_ac)
-            
-        self.tracked_devices = tracked_devices or []
-        self.sub_devices = sub_devices or []
-        self.device_names = device_names or {}
-        for dev in self.tracked_devices:
-            self.entities.append(dev)
-            
-        self.grid_id = grid
-        self.solar_id = solar
-        self.battery_id = battery
-        self.price_id = price
-        self.export_price_id = export_price
-        self.inverter_ac_id = inverter_ac
-        self.penalty_fixed = penalty
-        self.penalty_pct = penalty_pct
-        
-        self.values = {
-            "grid": 0.0,
-            "solar": 0.0,
-            "battery": 0.0,
-            "price": 0.0,
-            "export_price": 0.0,
-            "inverter_ac": 0.0,
-            "total_power_consumption": 0.0,
-            "total_cost_rate": 0.0,
-            "net_grid_cost_rate": 0.0,
-            "net_grid_energy_rate": 0.0,
-            "system_earnings_rate": 0.0,
-            "solar_only_earnings_rate": 0.0,
-            "battery_added_value_rate": 0.0,
-            "effective_price": 0.0,
-            "total_system_cost_rate": 0.0,
-            "total_system_energy_rate": 0.0,
-            "untracked_power": 0.0,
-            "untracked_cost_rate": 0.0,
-            "untracked_energy_rate": 0.0,
-            "inverter_loss_power": 0.0,
-            "inverter_loss_cost_rate": 0.0,
-        }
-        for dev in self.tracked_devices:
-            safe_key = dev.replace("sensor.", "").replace(".", "_")
-            self.values[f"dev_{safe_key}_power"] = 0.0
-            self.values[f"dev_{safe_key}_cost_rate"] = 0.0
-            self.values[f"dev_{safe_key}_energy_rate"] = 0.0
-            
-        self.listeners = []
-        self._last_update = None
-        self._last_efficiency = 0.96
-
-    async def async_start(self):
-        for entity_id in self.entities:
-            state = self.hass.states.get(entity_id)
-            self._update_value(entity_id, state)
-            
-        self.recalculate()
-        async_track_state_change_event(self.hass, self.entities, self._state_changed)
-
-    @callback
-    def _state_changed(self, event):
-        entity_id = event.data.get("entity_id")
-        new_state = event.data.get("new_state")
-        self._update_value(entity_id, new_state)
-        self.recalculate()
-
-    def _update_value(self, entity_id, state):
-        val = 0.0
-        if state and state.state not in ("unknown", "unavailable"):
-            try:
-                val = float(state.state)
-            except ValueError:
-                pass
-                
-        if entity_id == self.grid_id:
-            self.values["grid"] = val
-        elif entity_id == self.solar_id:
-            self.values["solar"] = val
-        elif entity_id == self.battery_id:
-            self.values["battery"] = val
-        elif entity_id == self.inverter_ac_id:
-            self.values["inverter_ac"] = val
-        if entity_id == self.price_id:
-            self.values["price"] = val
-        if entity_id == self.export_price_id:
-            self.values["export_price"] = val
-        elif entity_id in self.tracked_devices:
-            safe_key = entity_id.replace("sensor.", "").replace(".", "_")
-            self.values[f"dev_{safe_key}_power"] = val
-
-    def recalculate(self):
-        now = dt_util.utcnow()
-        delta_hours = 0.0
-        if self._last_update:
-            delta_hours = (now - self._last_update).total_seconds() / 3600.0
-            
-        grid = self.values["grid"]
-        raw_solar = self.values["solar"]
-        raw_battery = self.values["battery"]
-        price = self.values["price"]
-        raw_export_price = self.values["export_price"] if self.export_price_id and self.export_price_id != self.price_id else price
-        inverter_ac = -self.values["inverter_ac"] # Inverted: Deye L1 is Negative when supplying power
-
-        if self.inverter_ac_id:
-            total_power = grid + inverter_ac
-            
-            if inverter_ac > 0:
-                dc_to_ac = max(raw_solar, 0.0) + raw_battery
-                if dc_to_ac > 50:
-                    eff = inverter_ac / dc_to_ac
-                    if 0.8 <= eff <= 1.0:
-                        self._last_efficiency = eff
-        else:
-            net_dc = max(raw_solar, 0.0) + raw_battery
-            if net_dc > 0:
-                est_inverter_loss = net_dc * (1.0 - self._last_efficiency)
-            else:
-                est_inverter_loss = abs(net_dc) * ((1.0 / self._last_efficiency) - 1.0) if self._last_efficiency > 0 else 0.0
-            total_power = grid + raw_solar + raw_battery - est_inverter_loss
-            
-        self.values["total_power_consumption"] = total_power
-        
-        total_load_kw = total_power / 1000.0
-        grid_kw = grid / 1000.0
-        
-        gross_cost = total_load_kw * price
-        self.values["total_cost_rate"] = gross_cost
-        
-        export_price = raw_export_price * (1.0 - self.penalty_pct / 100.0) - self.penalty_fixed
-        if grid_kw > 0:
-            net_grid_cost = grid_kw * price
-            
-            if total_load_kw > 0:
-                import_fraction = min(1.0, grid_kw / total_load_kw)
-                effective_price = (import_fraction * price) + ((1.0 - import_fraction) * export_price)
-            else:
-                effective_price = 0.0
-        else:
-            net_grid_cost = grid_kw * export_price
-            effective_price = export_price
-            
-        self.values["net_grid_cost_rate"] = net_grid_cost
-        self.values["net_grid_energy_rate"] = grid_kw
-        self.values["effective_price"] = effective_price
-        self.values["total_system_cost_rate"] = total_load_kw * effective_price
-        self.values["total_system_energy_rate"] = total_load_kw
-        
-        tracked_power_sum = 0.0
-        for dev in self.tracked_devices:
-            safe_key = dev.replace("sensor.", "").replace(".", "_")
-            dev_power = self.values.get(f"dev_{safe_key}_power", 0.0)
-            if dev_power > 0:
-                if dev not in self.sub_devices:
-                    tracked_power_sum += dev_power
-                dev_kw = dev_power / 1000.0
-                self.values[f"dev_{safe_key}_cost_rate"] = dev_kw * effective_price
-                self.values[f"dev_{safe_key}_energy_rate"] = dev_kw
-            else:
-                self.values[f"dev_{safe_key}_cost_rate"] = 0.0
-                self.values[f"dev_{safe_key}_energy_rate"] = 0.0
-                
-        untracked_power = max(0.0, total_power - tracked_power_sum)
-        self.values["untracked_power"] = untracked_power
-        self.values["untracked_cost_rate"] = (untracked_power / 1000.0) * effective_price
-        self.values["untracked_energy_rate"] = untracked_power / 1000.0
-        
-        system_earnings = gross_cost - net_grid_cost
-        self.values["system_earnings_rate"] = system_earnings
-        
-        # --- Solar Only Earnings Rate Calculation ---
-        # Formula: solar_only = gross_cost - sim_net_cost
-        # 1. Convert DC solar to AC using inverter efficiency: sim_solar_ac = max(raw_solar, 0) * efficiency
-        # 2. Simulate net grid balance without battery: sim_grid = total_load_kw - sim_solar_kw
-        # 3. Calculate simulated net bill:
-        #    - If sim_grid > 0 (importing): sim_net_cost = sim_grid * price
-        #    - If sim_grid <= 0 (exporting): sim_net_cost = sim_grid * effective_export_price
-        sim_solar_ac = max(raw_solar, 0.0) * self._last_efficiency
-        sim_grid = total_load_kw - (sim_solar_ac / 1000.0)
-        if sim_grid > 0:
-            sim_net_cost = sim_grid * price
-        else:
-            sim_net_cost = sim_grid * (raw_export_price * (1.0 - self.penalty_pct / 100.0) - self.penalty_fixed)
-            
-        solar_only = gross_cost - sim_net_cost
-        self.values["solar_only_earnings_rate"] = solar_only
-        
-        # --- Battery Added Value Rate Calculation ---
-        # Formula: battery_added = system_earnings - solar_only
-        battery_added = system_earnings - solar_only
-        self.values["battery_added_value_rate"] = battery_added
-
-        net_dc = max(raw_solar, 0.0) + raw_battery
-        if self.inverter_ac_id and inverter_ac != 0:
-            if inverter_ac > 0:
-                inverter_loss_w = max(0.0, net_dc - inverter_ac)
-            else:
-                inverter_loss_w = max(0.0, abs(inverter_ac) - abs(net_dc))
-        else:
-            if net_dc > 0:
-                inverter_loss_w = net_dc * (1.0 - self._last_efficiency)
-            else:
-                inverter_loss_w = abs(net_dc) * ((1.0 / self._last_efficiency) - 1.0) if self._last_efficiency > 0 else 0.0
-
-        marginal_price = price if grid_kw > 0 else export_price
-        self.values["inverter_loss_power"] = inverter_loss_w
-        self.values["inverter_loss_cost_rate"] = (inverter_loss_w / 1000.0) * marginal_price
-
-        for listener in self.listeners:
-            listener(delta_hours)
-            
-        self._last_update = now
-
-class ManagedSensor(SensorEntity):
-    def __init__(self, manager, prefix, name, key, unit, device_class=None, device_id_suffix=None, device_name=None, source_entity=None):
-        self.manager = manager
-        self._attr_name = name
-        self._attr_unique_id = f"{prefix}{key}"
-        self.entity_id = f"sensor.{prefix}{key}"
-        self._attr_native_unit_of_measurement = unit
-        self._key = key
-        if device_class:
-            self._attr_device_class = device_class
-        self._device_id_suffix = device_id_suffix
-        self._device_name = device_name
-        self._source_entity = source_entity
-            
-    @property
-    def device_info(self):
-        if self._device_id_suffix and self._device_name:
-            return {
-                "identifiers": {(DOMAIN, self._device_id_suffix)},
-                "name": self._device_name,
-                "manufacturer": "Solar & Battery Financials",
-            }
-        return None
-
-    @property
-    def extra_state_attributes(self):
-        attrs = {}
-        if self._source_entity:
-            attrs["source_entity_id"] = self._source_entity
-        return attrs
-
-    async def async_added_to_hass(self):
-        self.manager.listeners.append(self._handle_update)
-        
-    @callback
-    def _handle_update(self, delta_hours):
-        self.async_write_ha_state()
-
-    @property
-    def native_value(self):
-        return round(self.manager.values[self._key], 4)
-
-class TotalPowerSensor(ManagedSensor):
-    def __init__(self, manager, prefix, device_id_suffix=None, device_name=None):
-        super().__init__(manager, prefix, "Total Power Consumption", "total_power_consumption", "W", SensorDeviceClass.POWER, device_id_suffix, device_name)
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def extra_state_attributes(self):
-        return {
-            "tracked_devices": self.manager.tracked_devices,
-            "device_names": self.manager.device_names,
-            "sub_devices": self.manager.sub_devices,
-            "grid_sensor": self.manager.grid_id,
-            "solar_sensor": self.manager.solar_id,
-            "battery_sensor": self.manager.battery_id,
-            "price_sensor": self.manager.price_id,
-            "export_price_sensor": self.manager.export_price_id,
-        }
-
-class TotalCostRateSensor(ManagedSensor):
-    def __init__(self, manager, prefix, device_id_suffix=None, device_name=None):
-        super().__init__(manager, prefix, "Total Cost Rate", "total_cost_rate", "EUR/h", None, device_id_suffix, device_name)
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-class NetGridCostRateSensor(ManagedSensor):
-    def __init__(self, manager, prefix, device_id_suffix=None, device_name=None):
-        super().__init__(manager, prefix, "Net Grid Cost Rate", "net_grid_cost_rate", "EUR/h", None, device_id_suffix, device_name)
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-class SystemEarningsRateSensor(ManagedSensor):
-    def __init__(self, manager, prefix, device_id_suffix=None, device_name=None):
-        super().__init__(manager, prefix, "System Earnings Rate", "system_earnings_rate", "EUR/h", None, device_id_suffix, device_name)
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-class SolarOnlyEarningsRateSensor(ManagedSensor):
-    """Instantaneous savings rate (EUR/h) attributable strictly to Solar PV.
-
-    Formula:
-        Gross Cost Rate - Simulated Net Cost Rate (with Solar only, no Battery)
-    """
-    def __init__(self, manager, prefix, device_id_suffix=None, device_name=None):
-        super().__init__(manager, prefix, "Solar Only Earnings Rate", "solar_only_earnings_rate", "EUR/h", None, device_id_suffix, device_name)
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-class BatteryAddedValueRateSensor(ManagedSensor):
-    """Instantaneous savings rate (EUR/h) added specifically by the Battery.
-
-    Formula:
-        Total System Earnings Rate - Solar Only Earnings Rate
-    """
-    def __init__(self, manager, prefix, device_id_suffix=None, device_name=None):
-        super().__init__(manager, prefix, "Battery Added Value Rate", "battery_added_value_rate", "EUR/h", None, device_id_suffix, device_name)
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-class CumulativeSensor(SensorEntity, RestoreEntity):
-    def __init__(self, manager, prefix, name, source_key, unit, device_class=SensorDeviceClass.MONETARY, device_id_suffix=None, device_name=None, entity_id_base=None, source_entity=None):
-        self.manager = manager
-        self._attr_name = name
-        base = entity_id_base if entity_id_base else source_key
-        self._attr_unique_id = f"{prefix}{base}_cumulative"
-        self.entity_id = f"sensor.{prefix}{base}_cumulative"
-        self._attr_native_unit_of_measurement = unit
-        self._attr_state_class = SensorStateClass.TOTAL
-        self._attr_device_class = device_class
-        self._source_key = source_key
-        self._state = 0.0
-        self._previous_rate = 0.0
-        self._device_id_suffix = device_id_suffix
-        self._device_name = device_name
-        self._source_entity = source_entity
-
-    @property
-    def device_info(self):
-        if self._device_id_suffix and self._device_name:
-            return {
-                "identifiers": {(DOMAIN, self._device_id_suffix)},
-                "name": self._device_name,
-                "manufacturer": "Solar & Battery Financials",
-            }
-        return None
-
-    @property
-    def extra_state_attributes(self):
-        attrs = {}
-        if self._source_entity:
-            attrs["source_entity_id"] = self._source_entity
-        return attrs
-
-    async def async_added_to_hass(self):
-        await super().async_added_to_hass()
-        state = await self.async_get_last_state()
-        if state and state.state not in ("unknown", "unavailable"):
-            try:
-                self._state = float(state.state)
-            except ValueError:
-                pass
-        self.manager.listeners.append(self._handle_update)
-        self._previous_rate = self.manager.values[self._source_key]
-
-    @callback
-    def _handle_update(self, delta_hours):
-        if delta_hours > 0:
-            added = self._previous_rate * delta_hours
-            self._state += added
-            
-        self._previous_rate = self.manager.values[self._source_key]
-        self.async_write_ha_state()
-
-    @property
-    def native_value(self):
-        return round(self._state, 4)
-
-class PeriodSensor(SensorEntity, RestoreEntity):
-    def __init__(self, manager, prefix, name, source_key, unit, period, device_class=SensorDeviceClass.MONETARY, device_id_suffix=None, device_name=None, entity_id_base=None, source_entity=None):
-        self.manager = manager
-        self._attr_name = name
-        base = entity_id_base if entity_id_base else source_key
-        self._attr_unique_id = f"{prefix}{base}_{period}"
-        self.entity_id = f"sensor.{prefix}{base}_{period}"
-        self._attr_native_unit_of_measurement = unit
-        self._attr_state_class = SensorStateClass.TOTAL
-        self._attr_device_class = device_class
-        self._period = period
-        self._source_key = source_key
-        self._state = 0.0
-        self._previous_rate = 0.0
-        self._last_reset = None
-        self._device_id_suffix = device_id_suffix
-        self._device_name = device_name
-        self._source_entity = source_entity
-
-    @property
-    def device_info(self):
-        if self._device_id_suffix and self._device_name:
-            return {
-                "identifiers": {(DOMAIN, self._device_id_suffix)},
-                "name": self._device_name,
-                "manufacturer": "Solar & Battery Financials",
-            }
-        return None
-
-    @property
-    def extra_state_attributes(self):
-        attrs = {}
-        if self._source_entity:
-            attrs["source_entity_id"] = self._source_entity
-        attrs["internal_last_reset"] = self._last_reset.isoformat() if self._last_reset else None
-        return attrs
-
-    async def async_added_to_hass(self):
-        await super().async_added_to_hass()
-        state = await self.async_get_last_state()
-        if state and state.state not in ("unknown", "unavailable"):
-            try:
-                self._state = float(state.state)
-            except ValueError:
-                pass
-            
-            if "internal_last_reset" in state.attributes and state.attributes["internal_last_reset"]:
-                try:
-                    self._last_reset = dt_util.parse_datetime(state.attributes["internal_last_reset"])
-                except Exception:
-                    pass
-
-        if not self._last_reset:
-            self._last_reset = dt_util.now()
-
-        self.manager.listeners.append(self._handle_update)
-        self._previous_rate = self.manager.values[self._source_key]
-
-    def _check_reset(self, now):
-        if not self._last_reset:
-            self._last_reset = now
-            return False
-
-        reset = False
-        if self._period == "daily":
-            if now.date() != self._last_reset.date():
-                reset = True
-        elif self._period == "weekly":
-            if now.isocalendar()[:2] != self._last_reset.isocalendar()[:2]:
-                reset = True
-        elif self._period == "monthly":
-            if now.month != self._last_reset.month or now.year != self._last_reset.year:
-                reset = True
-        elif self._period == "yearly":
-            if now.year != self._last_reset.year:
-                reset = True
-
-        if reset:
-            self._state = 0.0
-            self._last_reset = now
-            return True
-        return False
-
-    @callback
-    def _handle_update(self, delta_hours):
-        now = dt_util.now()
-        if self._check_reset(now):
-            self._attr_last_reset = now
-
-        if delta_hours > 0:
-            added = self._previous_rate * delta_hours
-            self._state += added
-            
-        self._previous_rate = self.manager.values[self._source_key]
-        self.async_write_ha_state()
-
-    @property
-    def native_value(self):
-        return round(self._state, 4)
-
-    @property
-    def extra_state_attributes(self):
-        return {
-            "internal_last_reset": self._last_reset.isoformat() if self._last_reset else None
-        }
-
-class AverageRateSensor(SensorEntity):
-    def __init__(self, manager, prefix, name, cost_sensor, energy_sensor, key_suffix, device_id_suffix=None, device_name=None, source_entity=None):
-        self.manager = manager
-        self._attr_name = name
-        self._attr_unique_id = f"{prefix}{key_suffix}"
-        self.entity_id = f"sensor.{prefix}{key_suffix}"
-        self._attr_native_unit_of_measurement = "EUR/kWh"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._cost_sensor = cost_sensor
-        self._energy_sensor = energy_sensor
-        self._device_id_suffix = device_id_suffix
-        self._device_name = device_name
-        self._source_entity = source_entity
-        self._state = 0.0
-
-    @property
-    def device_info(self):
-        if self._device_id_suffix and self._device_name:
-            return {
-                "identifiers": {(DOMAIN, self._device_id_suffix)},
-                "name": self._device_name,
-                "manufacturer": "Solar & Battery Financials",
-            }
-        return None
-
-    @property
-    def extra_state_attributes(self):
-        attrs = {}
-        if self._source_entity:
-            attrs["source_entity_id"] = self._source_entity
-        return attrs
-
-    async def async_added_to_hass(self):
-        self.manager.listeners.append(self._handle_update)
-        self._handle_update(0)
-
-    @callback
-    def _handle_update(self, delta_hours):
-        cost = getattr(self._cost_sensor, "_state", 0.0)
-        energy = getattr(self._energy_sensor, "_state", 0.0)
-        if energy > 0:
-            self._state = cost / energy
-        else:
-            self._state = 0.0
-        self.async_write_ha_state()
-
-    @property
-    def native_value(self):
-        return round(self._state, 4)

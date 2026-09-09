@@ -14,6 +14,7 @@
           "feed_in_penalty_percent": "Export Price Percentage Deduction (%) (Optional)",
           "prefix": "Entity ID Prefix (e.g. sbf_) (Optional)",
           "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
+          "generate_rate_sensors": "Generate EUR/kWh Rate Sensors (Optional)",
           "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
         }
       },
@@ -45,6 +46,7 @@
           "feed_in_penalty_percent": "Export Price Percentage Deduction (%) (Optional)",
           "prefix": "Entity ID Prefix (e.g. sbf_) (Optional)",
           "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
+          "generate_rate_sensors": "Generate EUR/kWh Rate Sensors (Optional)",
           "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
         }
       },

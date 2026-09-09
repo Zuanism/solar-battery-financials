@@ -1,253 +1,230 @@
-import voluptuous as vol
+"""Config flow for Solar & Battery Financials integration."""
+from __future__ import annotations
+
+from typing import Any
+
 from homeassistant import config_entries, core
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
+import voluptuous as vol
 
 from .const import (
-    DOMAIN,
-    CONF_GRID_SENSOR,
-    CONF_SOLAR_SENSOR,
     CONF_BATTERY_SENSOR,
-    CONF_INVERTER_AC_SENSOR,
-    CONF_PRICE_SENSOR,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
-    CONF_PREFIX,
-    CONF_TRACKED_DEVICES,
     CONF_GENERATE_RATE_SENSORS,
+    CONF_GRID_SENSOR,
+    CONF_INVERTER_AC_SENSOR,
+    CONF_PREFIX,
+    CONF_PRICE_SENSOR,
+    CONF_SOLAR_SENSOR,
+    CONF_TRACKED_DEVICES,
     DEFAULT_FEED_IN_PENALTY,
     DEFAULT_FEED_IN_PENALTY_PERCENT,
-    DEFAULT_PREFIX,
     DEFAULT_GENERATE_RATE_SENSORS,
+    DEFAULT_PREFIX,
+    DOMAIN,
 )
 
-class SolarBatteryFinancialsOptionsFlowHandler(config_entries.OptionsFlowWithConfigEntry):
-    """Handle options flow for Solar & Battery Financials."""
-    
-    def __init__(self, config_entry):
-        super().__init__(config_entry)
-        self.options_data = {}
 
-    async def async_step_init(self, user_input=None):
-        """Manage the options."""
+def _entity_field(
+    config: dict[str, Any], key: str, required: bool = False, multiple: bool = False
+) -> tuple[vol.Marker, selector.EntitySelector]:
+    """Build an EntitySelector field tuple with appropriate default value."""
+    selector_cfg = selector.EntitySelectorConfig(domain="sensor", multiple=multiple)
+    default = [] if multiple else None
+    val = config.get(key, default if multiple else None)
+    if required:
+        marker = vol.Required(key, default=val) if val is not None else vol.Required(key)
+    else:
+        marker = vol.Optional(key, default=val) if val is not None else vol.Optional(key)
+    return marker, selector.EntitySelector(selector_cfg)
+
+
+def _float_field(
+    config: dict[str, Any], key: str, default: float
+) -> tuple[vol.Optional, Any]:
+    """Build a Coerce(float) field tuple with appropriate default value."""
+    val = config.get(key, default)
+    return vol.Optional(key, default=val), vol.Coerce(float)
+
+
+def _str_field(
+    config: dict[str, Any], key: str, default: str
+) -> tuple[vol.Optional, type]:
+    """Build a string field tuple with appropriate default value."""
+    val = config.get(key, default)
+    return vol.Optional(key, default=val), str
+
+
+def _bool_field(
+    config: dict[str, Any], key: str, default: bool
+) -> tuple[vol.Optional, type]:
+    """Build a boolean field tuple with appropriate default value."""
+    val = config.get(key, default)
+    return vol.Optional(key, default=val), bool
+
+
+def build_config_schema(config: dict[str, Any] | None = None) -> vol.Schema:
+    """Construct schema for main options/config step, reusing existing values if present."""
+    cfg = config or {}
+    fields = [
+        _entity_field(cfg, CONF_GRID_SENSOR, required=True),
+        _entity_field(cfg, CONF_SOLAR_SENSOR),
+        _entity_field(cfg, CONF_BATTERY_SENSOR),
+        _entity_field(cfg, CONF_INVERTER_AC_SENSOR),
+        _entity_field(cfg, CONF_PRICE_SENSOR, required=True),
+        _entity_field(cfg, CONF_EXPORT_PRICE_SENSOR),
+        _float_field(cfg, CONF_FEED_IN_PENALTY, DEFAULT_FEED_IN_PENALTY),
+        _float_field(cfg, CONF_FEED_IN_PENALTY_PERCENT, DEFAULT_FEED_IN_PENALTY_PERCENT),
+        _str_field(cfg, CONF_PREFIX, DEFAULT_PREFIX),
+        _bool_field(cfg, CONF_GENERATE_RATE_SENSORS, DEFAULT_GENERATE_RATE_SENSORS),
+        _entity_field(cfg, CONF_TRACKED_DEVICES, multiple=True),
+    ]
+    return vol.Schema(dict(fields))
+
+
+class DeviceConfigStepMixin:
+    """Shared flow steps for configuring device custom names and sub-device exclusions."""
+
+    flow_data: dict[str, Any]
+
+    @property
+    def existing_config(self) -> dict[str, Any]:
+        """Return existing configuration/options dictionary."""
+        return {}
+
+    def _finish_flow(self) -> FlowResult:
+        """Complete the flow; implemented by subclass."""
+        raise NotImplementedError
+
+    async def async_step_device_names(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Allow user to provide human-friendly names for tracked devices."""
         if user_input is not None:
-            self.options_data = dict(self.config_entry.options)
-            self.options_data.update(user_input)
-            if self.options_data.get(CONF_TRACKED_DEVICES):
-                return await self.async_step_device_names()
-            else:
-                self.options_data["device_names"] = {}
-                return self.async_create_entry(title="", data=self.options_data)
-
-        config = dict(self.config_entry.data)
-        config.update(self.config_entry.options or {})
-
-        schema_dict = {}
-
-        for key in [CONF_GRID_SENSOR, CONF_PRICE_SENSOR]:
-            val = config.get(key)
-            if val is not None:
-                schema_dict[vol.Required(key, default=val)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                )
-            else:
-                schema_dict[vol.Required(key)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                )
-                
-        for key in [CONF_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_EXPORT_PRICE_SENSOR]:
-            val = config.get(key)
-            if val is not None:
-                schema_dict[vol.Optional(key, default=val)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                )
-            else:
-                schema_dict[vol.Optional(key)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                )
-
-        inv_ac = config.get(CONF_INVERTER_AC_SENSOR)
-        if inv_ac is not None:
-            schema_dict[vol.Optional(CONF_INVERTER_AC_SENSOR, default=inv_ac)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor")
-            )
-        else:
-            schema_dict[vol.Optional(CONF_INVERTER_AC_SENSOR)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor")
-            )
-
-        penalty = config.get(CONF_FEED_IN_PENALTY)
-        if penalty is not None:
-            schema_dict[vol.Optional(CONF_FEED_IN_PENALTY, default=penalty)] = vol.Coerce(float)
-        else:
-            schema_dict[vol.Optional(CONF_FEED_IN_PENALTY, default=DEFAULT_FEED_IN_PENALTY)] = vol.Coerce(float)
-
-        penalty_pct = config.get(CONF_FEED_IN_PENALTY_PERCENT)
-        if penalty_pct is not None:
-            schema_dict[vol.Optional(CONF_FEED_IN_PENALTY_PERCENT, default=penalty_pct)] = vol.Coerce(float)
-        else:
-            schema_dict[vol.Optional(CONF_FEED_IN_PENALTY_PERCENT, default=DEFAULT_FEED_IN_PENALTY_PERCENT)] = vol.Coerce(float)
-
-        prefix = config.get(CONF_PREFIX)
-        if prefix is not None:
-            schema_dict[vol.Optional(CONF_PREFIX, default=prefix)] = str
-        else:
-            schema_dict[vol.Optional(CONF_PREFIX, default=DEFAULT_PREFIX)] = str
-
-        generate_rate_sensors = config.get(CONF_GENERATE_RATE_SENSORS)
-        if generate_rate_sensors is not None:
-            schema_dict[vol.Optional(CONF_GENERATE_RATE_SENSORS, default=generate_rate_sensors)] = bool
-        else:
-            schema_dict[vol.Optional(CONF_GENERATE_RATE_SENSORS, default=DEFAULT_GENERATE_RATE_SENSORS)] = bool
-
-        tracked_devices = config.get(CONF_TRACKED_DEVICES, [])
-        schema_dict[vol.Optional(CONF_TRACKED_DEVICES, default=tracked_devices)] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="sensor", multiple=True)
-        )
-
-        data_schema = vol.Schema(schema_dict)
-
-        return self.async_show_form(
-            step_id="init", data_schema=data_schema
-        )
-
-    async def async_step_device_names(self, user_input=None):
-        if user_input is not None:
-            self.options_data["device_names"] = user_input
+            self.flow_data["device_names"] = user_input
             return await self.async_step_sub_devices()
 
-        schema_dict = {}
-        existing_names = self.config_entry.options.get("device_names", {})
-        if not existing_names:
-            existing_names = self.config_entry.data.get("device_names", {})
-
-        for device_id in self.options_data.get(CONF_TRACKED_DEVICES, []):
+        existing_names = self.existing_config.get("device_names", {})
+        schema_dict: dict[vol.Marker, type] = {}
+        for device_id in self.flow_data.get(CONF_TRACKED_DEVICES, []):
             default_name = existing_names.get(
-                device_id, 
-                device_id.replace("sensor.", "").replace("_power", "").replace("_", " ").title()
+                device_id,
+                device_id.replace("sensor.", "").replace("_power", "").replace("_", " ").title(),
             )
             schema_dict[vol.Optional(device_id, description={"suggested_value": default_name})] = str
 
         return self.async_show_form(step_id="device_names", data_schema=vol.Schema(schema_dict))
 
-    async def async_step_sub_devices(self, user_input=None):
+    async def async_step_sub_devices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Allow user to designate tracked devices as sub-devices (excluded from untracked calculation)."""
         if user_input is not None:
-            self.options_data["sub_devices"] = user_input.get("sub_devices", [])
-            return self.async_create_entry(title="", data=self.options_data)
-            
-        options = []
-        for dev_id in self.options_data.get(CONF_TRACKED_DEVICES, []):
-            name = self.options_data["device_names"].get(dev_id, dev_id)
-            options.append(selector.SelectOptionDict(value=dev_id, label=name))
-            
-        existing_sub_devices = self.config_entry.options.get("sub_devices", [])
-        if not existing_sub_devices:
-            existing_sub_devices = self.config_entry.data.get("sub_devices", [])
-            
-        valid_subs = [d for d in existing_sub_devices if d in self.options_data.get(CONF_TRACKED_DEVICES, [])]
+            self.flow_data["sub_devices"] = user_input.get("sub_devices", [])
+            return self._finish_flow()
+
+        tracked_devices = self.flow_data.get(CONF_TRACKED_DEVICES, [])
+        options = [
+            selector.SelectOptionDict(
+                value=dev_id,
+                label=self.flow_data.get("device_names", {}).get(dev_id, dev_id),
+            )
+            for dev_id in tracked_devices
+        ]
+
+        existing_subs = self.existing_config.get("sub_devices", [])
+        valid_subs = [d for d in existing_subs if d in tracked_devices]
 
         schema_dict = {
             vol.Optional("sub_devices", default=valid_subs): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=options,
                     multiple=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN
+                    mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             )
         }
-        
         return self.async_show_form(step_id="sub_devices", data_schema=vol.Schema(schema_dict))
 
-class SolarBatteryFinancialsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+
+class SolarBatteryFinancialsOptionsFlowHandler(
+    DeviceConfigStepMixin, config_entries.OptionsFlowWithConfigEntry
+):
+    """Handle options flow for Solar & Battery Financials."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        super().__init__(config_entry)
+        self.flow_data: dict[str, Any] = {}
+
+    @property
+    def existing_config(self) -> dict[str, Any]:
+        cfg = dict(self.config_entry.data)
+        cfg.update(self.config_entry.options or {})
+        return cfg
+
+    def _finish_flow(self) -> FlowResult:
+        return self.async_create_entry(title="", data=self.flow_data)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage integration options."""
+        if user_input is not None:
+            self.flow_data = dict(self.config_entry.options)
+            self.flow_data.update(user_input)
+            if self.flow_data.get(CONF_TRACKED_DEVICES):
+                return await self.async_step_device_names()
+            self.flow_data["device_names"] = {}
+            return self._finish_flow()
+
+        return self.async_show_form(
+            step_id="init", data_schema=build_config_schema(self.existing_config)
+        )
+
+
+class SolarBatteryFinancialsConfigFlow(
+    DeviceConfigStepMixin, config_entries.ConfigFlow, domain=DOMAIN
+):
     """Handle a config flow for Solar & Battery Financials."""
 
     VERSION = 1
 
-    def __init__(self):
-        self.config_data = {}
+    def __init__(self) -> None:
+        self.flow_data: dict[str, Any] = {}
+
+    @property
+    def existing_config(self) -> dict[str, Any]:
+        return {}
+
+    def _finish_flow(self) -> FlowResult:
+        return self.async_create_entry(
+            title="Solar & Battery Financials", data=self.flow_data
+        )
 
     @staticmethod
     @core.callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> SolarBatteryFinancialsOptionsFlowHandler:
         """Get the options flow for this handler."""
         return SolarBatteryFinancialsOptionsFlowHandler(config_entry)
 
-    async def async_step_user(self, user_input=None):
-        """Handle the initial step."""
-        errors = {}
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial user step."""
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            self.config_data.update(user_input)
-            if self.config_data.get(CONF_TRACKED_DEVICES):
+            self.flow_data.update(user_input)
+            if self.flow_data.get(CONF_TRACKED_DEVICES):
                 return await self.async_step_device_names()
-            else:
-                self.config_data["device_names"] = {}
-                return self.async_create_entry(title="Solar & Battery Financials", data=self.config_data)
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_GRID_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-                vol.Optional(CONF_SOLAR_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-                vol.Optional(CONF_BATTERY_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-                vol.Optional(CONF_INVERTER_AC_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-                vol.Required(CONF_PRICE_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-                vol.Optional(CONF_EXPORT_PRICE_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-                vol.Optional(CONF_FEED_IN_PENALTY, default=DEFAULT_FEED_IN_PENALTY): vol.Coerce(float),
-                vol.Optional(CONF_FEED_IN_PENALTY_PERCENT, default=DEFAULT_FEED_IN_PENALTY_PERCENT): vol.Coerce(float),
-                vol.Optional(CONF_PREFIX, default=DEFAULT_PREFIX): str,
-                vol.Optional(CONF_GENERATE_RATE_SENSORS, default=DEFAULT_GENERATE_RATE_SENSORS): bool,
-                vol.Optional(CONF_TRACKED_DEVICES, default=[]): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", multiple=True)
-                ),
-            }
-        )
+            self.flow_data["device_names"] = {}
+            return self._finish_flow()
 
         return self.async_show_form(
-            step_id="user", data_schema=data_schema, errors=errors
+            step_id="user", data_schema=build_config_schema(), errors=errors
         )
-
-    async def async_step_device_names(self, user_input=None):
-        if user_input is not None:
-            self.config_data["device_names"] = user_input
-            return await self.async_step_sub_devices()
-
-        schema_dict = {}
-        for device_id in self.config_data.get(CONF_TRACKED_DEVICES, []):
-            default_name = device_id.replace("sensor.", "").replace("_power", "").replace("_", " ").title()
-            schema_dict[vol.Optional(device_id, description={"suggested_value": default_name})] = str
-
-        return self.async_show_form(step_id="device_names", data_schema=vol.Schema(schema_dict))
-
-    async def async_step_sub_devices(self, user_input=None):
-        if user_input is not None:
-            self.config_data["sub_devices"] = user_input.get("sub_devices", [])
-            return self.async_create_entry(title="Solar & Battery Financials", data=self.config_data)
-            
-        options = []
-        for dev_id in self.config_data.get(CONF_TRACKED_DEVICES, []):
-            name = self.config_data["device_names"].get(dev_id, dev_id)
-            options.append(selector.SelectOptionDict(value=dev_id, label=name))
-            
-        schema_dict = {
-            vol.Optional("sub_devices", default=[]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=options,
-                    multiple=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN
-                )
-            )
-        }
-        
-        return self.async_show_form(step_id="sub_devices", data_schema=vol.Schema(schema_dict))

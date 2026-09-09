@@ -1,10 +1,785 @@
 /**
  * Lovelace Dashboard Strategy for Solar & Battery Financials
- * EXACT 1:1 Golden Reference Clone (Generated from dashboard_view.yaml)
+ * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (v5.20 Generic)");
-const GOLDEN_VIEWS = [
+console.info("⚡ SBF Strategy JS loaded (Modular v5.35)");
+
+// ============================================================================
+// 1. REUSABLE CSS STYLES
+// ============================================================================
+const STYLES = {
+  noShadow:
+    ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
+  stackGrid:
+    ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
+  transparentCard:
+    "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
+  subviewHeader:
+    "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
+  subviewHeaderPointer:
+    "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n  cursor: pointer !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
+  pillContainer:
+    "ha-card {\n  background: rgba(var(--rgb-primary-text-color), 0.05);\n  border-radius: 24px;\n  padding: 4px;\n  margin: 0 auto;\n  width: fit-content;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n",
+  pillContainerSubview:
+    "ha-card {\n  background: rgba(var(--rgb-primary-text-color), 0.05);\n  border-radius: 24px;\n  padding: 4px;\n  margin: 0 auto;\n  width: fit-content;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  margin-bottom: 8px !important;\n}\n",
+};
+
+// ============================================================================
+// 2. PERIOD PILLS & CHIPS BUILDERS
+// ============================================================================
+const PERIOD_PILLS = [
+  { content: "Daily", option: "Daily" },
+  { content: "Weekly", option: "Weekly" },
+  { content: "Monthly", option: "Monthly" },
+  { content: "Yearly", option: "Yearly" },
+  { content: "All", option: "All-Time" },
+];
+
+const CHART_PERIOD_CHIPS = {
+  daily: [["7", "7 Days"], ["14", "14 Days"], ["30", "30 Days"], ["60", "60 Days"], ["90", "90 Days"]],
+  weekly: [["4", "4 Weeks"], ["8", "8 Weeks"], ["12", "12 Weeks"], ["26", "26 Weeks"], ["52", "52 Weeks"]],
+  monthly: [["6", "6 Months"], ["12", "12 Months"], ["24", "24 Months"], ["36", "36 Months"]],
+};
+
+const POWER_CHIPS = [["1", "1 Day"], ["3", "3 Days"], ["7", "7 Days"], ["14", "14 Days"]];
+
+const createPillStyle = (selectEntity, stateValue) =>
+  `ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('${selectEntity}', '${stateValue}') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('${selectEntity}', '${stateValue}') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('${selectEntity}', '${stateValue}') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('${selectEntity}', '${stateValue}') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n`;
+
+const makeChip = (selectEntity, val, label) => ({
+  type: "template",
+  content: label,
+  card_mod: { style: createPillStyle(selectEntity, val) },
+  tap_action: {
+    action: "call-service",
+    service: "select.select_option",
+    target: { entity_id: selectEntity },
+    data: { option: val },
+  },
+});
+
+const createChipsCard = (chips, style, alignment = "center") => ({
+  type: "custom:mushroom-chips-card",
+  alignment,
+  ...(style ? { card_mod: { style } } : {}),
+  chips,
+});
+
+const createPeriodPills = (selectEntity = "select.sbf_financial_view_period", isSubview = false) =>
+  createChipsCard(
+    PERIOD_PILLS.map((p) => makeChip(selectEntity, p.option, p.content)),
+    isSubview ? STYLES.pillContainerSubview : STYLES.pillContainer
+  );
+
+const createChartChips = (selectEntity, options) =>
+  createChipsCard(options.map(([val, label]) => makeChip(selectEntity, val, label)));
+
+// ============================================================================
+// 3. MAIN FINANCIALS VIEW BUILDERS
+// ============================================================================
+const makeMushroomTemplateCard = ({ entity, primary, secondary, icon, icon_color, navPath, multiline = true, layout = "vertical" }) => ({
+  type: "custom:mushroom-template-card",
+  entity,
+  primary,
+  secondary,
+  icon,
+  icon_color,
+  layout,
+  multiline_secondary: multiline,
+  ...(navPath ? { tap_action: { action: "navigate", navigation_path: navPath } } : {}),
+});
+
+const subviewHeaderCard = (entity, label, pointer = false) => ({
+  type: "custom:mushroom-template-card",
+  entity,
+  primary: label,
+  icon_type: "none",
+  tap_action: { action: "more-info", entity },
+  card_mod: { style: pointer ? STYLES.subviewHeaderPointer : STYLES.subviewHeader },
+});
+
+const conditionalVerticalStack = (period, cards) => ({
+  type: "conditional",
+  conditions: [{ entity: "select.sbf_financial_view_period", state: period }],
+  card: { type: "vertical-stack", cards },
+});
+
+const grid3Cols = (cards) => ({
+  type: "grid",
+  columns: 3,
+  square: false,
+  card_mod: { style: STYLES.noShadow },
+  cards,
+});
+
+const stackGridCards = (cards) => ({
+  type: "custom:stack-in-card",
+  cards: [{ type: "grid", columns: 2, square: false, card_mod: { style: STYLES.stackGrid }, cards }],
+});
+
+const makePanelSubview = (title, path, cards) => ({
+  title,
+  path,
+  subview: true,
+  type: "panel",
+  cards: [{ type: "vertical-stack", cards }],
+});
+
+const EARNINGS_CARDS_DEF = [
+  { key: "system_earnings", label: "Total", icon: "mdi:finance", color: "green", path: "financials-total-system-earnings" },
+  { key: "solar_only_earnings", label: "Solar Only", icon: "mdi:solar-power", color: "amber", path: "financials-solar-only-earnings" },
+  { key: "battery_added_value", label: "Battery Val", icon: "mdi:battery-arrow-up", color: "purple", path: "financials-battery-added-value" },
+];
+
+const createEarningsRow = (suffix, dashUrl = "") =>
+  grid3Cols(
+    EARNINGS_CARDS_DEF.map((c) =>
+      makeMushroomTemplateCard({
+        entity: `sensor.sbf2_${c.key}_rate_${suffix}`,
+        primary: `{{ states('sensor.sbf2_${c.key}_rate_${suffix}') | float(0) | round(2) }} €`,
+        secondary: c.label,
+        icon: c.icon,
+        icon_color: c.color,
+        navPath: `${dashUrl}/${c.path}`,
+      })
+    )
+  );
+
+const costSecondaryTemplate = (costId, kwhId, label) =>
+  `{% set cost = states('${costId}')|float(0) %}\
+ {% set kwh = states('${kwhId}')|float(0) %}\
+ {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %}\
+ ${label}{{\n'\\n'}}{{ kwh | round(1) }} kWh @ €{{ avg }}`;
+
+const createCostsRow = (suffix, dashUrl = "") => {
+  const totCost = `sensor.sbf2_total_system_cost_rate_${suffix}`;
+  const totKwh = `sensor.sbf2_total_system_energy_rate_${suffix}`;
+  const netCost = `sensor.sbf2_net_grid_cost_rate_${suffix}`;
+  const netKwh = `sensor.sbf2_net_grid_energy_rate_${suffix}`;
+  const sysEarn = `sensor.sbf2_system_earnings_rate_${suffix}`;
+
+  return grid3Cols([
+    makeMushroomTemplateCard({
+      entity: totCost,
+      primary: `{% set cost = states('${totCost}')|float(0) %} {{ cost | round(2) }} €`,
+      secondary: costSecondaryTemplate(totCost, totKwh, "Effective"),
+      icon: "mdi:currency-eur",
+      icon_color: "amber",
+      navPath: `${dashUrl}/financials-effective-cost`,
+    }),
+    makeMushroomTemplateCard({
+      entity: totKwh,
+      primary: `{% set net = states('${netCost}')|float(0) %}\
+ {% set earn = states('${sysEarn}')|float(0) %}\
+ {% set cost = (net + earn) %}\
+ {{ cost | round(2) }} €`,
+      secondary: `{% set net = states('${netCost}')|float(0) %}\
+ {% set earn = states('${sysEarn}')|float(0) %}\
+ {% set cost = (net + earn) %}\
+ {% set kwh = states('${totKwh}')|float(0) %}\
+ {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %}\
+ Gross{{\n'\\n'}}{{ kwh | round(1) }} kWh @ €{{ avg }}`,
+      icon: "mdi:cash-remove",
+      icon_color: "red",
+    }),
+    makeMushroomTemplateCard({
+      entity: netCost,
+      primary: `{% set cost = states('${netCost}')|float(0) %} {{ cost | round(2) }} €`,
+      secondary: costSecondaryTemplate(netCost, netKwh, "Net Bill"),
+      icon: "mdi:receipt-text-check",
+      icon_color: "green",
+      navPath: `${dashUrl}/financials-net-bill`,
+    }),
+  ]);
+};
+
+const createFinancialsConditional = (period, suffix, dashUrl = "") =>
+  conditionalVerticalStack(period, [
+    { type: "heading", heading: "Earnings", icon: "mdi:piggy-bank" },
+    createEarningsRow(suffix, dashUrl),
+    { type: "heading", heading: "Total House Costs", icon: "mdi:home-lightning-bolt" },
+    createCostsRow(suffix, dashUrl),
+  ]);
+
+/**
+ * Builds a Mushroom card representing device financial stats (cost, energy, and unit rate).
+ * @param {Object} opts
+ * @param {string} opts.devName - Display name of the device
+ * @param {string} opts.devTarget - Entity slug target (e.g. "dev_kitchen_appliances")
+ * @param {string} opts.devId - Original entity ID
+ * @param {string} opts.suffix - Period suffix ("daily", "weekly", "monthly", "yearly", "cumulative")
+ * @param {number} opts.lowThresh - Low threshold for green color
+ * @param {number} opts.highThresh - High threshold for orange color (above is red)
+ * @param {string} [opts.dashUrl=""] - Dashboard base URL
+ * @param {Object} [opts.states={}] - HA states dictionary for smart icon resolution
+ */
+const makeDeviceFinCard = ({ devName, devTarget, devId, suffix, lowThresh, highThresh, dashUrl = "", states = {} }) => ({
+  type: "custom:mushroom-template-card",
+  entity: `sensor.sbf2_${devTarget}_cost_rate_${suffix}`,
+  primary: devName,
+  secondary: `{% set cost = states('sensor.sbf2_${devTarget}_cost_rate_${suffix}')|float(0) %}\
+ {% set kwh = states('sensor.sbf2_${devTarget}_energy_rate_${suffix}')|float(0) %}\
+ {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %}\
+ €{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})`,
+  icon: getSmartIcon(devName, devId, states),
+  icon_color: `{% set c = states('sensor.sbf2_${devTarget}_cost_rate_${suffix}') | float(0) %}\
+ {% if c < ${lowThresh} %} green {% elif c < ${highThresh} %} orange {% else %} red {% endif %}`,
+  layout: "horizontal",
+  fill_container: true,
+  tap_action: {
+    action: "navigate",
+    navigation_path: `${dashUrl}/financials-${slugify(devName)}`,
+  },
+  card_mod: { style: STYLES.transparentCard },
+});
+
+const createDeviceSection = (period, suffix, mainCards = [], subsetCards = []) =>
+  conditionalVerticalStack(period, [
+    { type: "heading", heading: "Main devices", icon: "mdi:domain" },
+    stackGridCards(mainCards),
+    { type: "heading", heading: "Subset Devices", icon: "mdi:devices" },
+    stackGridCards(subsetCards),
+  ]);
+
+// ============================================================================
+// 4. APEXCHARTS BUILDERS & HELPERS
+// ============================================================================
+// Time constants (milliseconds)
+const MS_PER_DAY = 86400000;
+const MS_PER_WEEK = 7 * MS_PER_DAY; // 604800000
+const MS_PER_MONTH = 30 * MS_PER_DAY; // 2592000000
+
+const EVAL_NUMERIC_FORMATTER =
+  "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n";
+
+const EVAL_RATE_FORMATTER =
+  "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n";
+
+const EVAL_MONEY_FORMATTER =
+  "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '€' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n";
+
+const EVAL_STACKED_EARNINGS_FORMATTER = `EVAL:function(val, opts) {
+  let s0 = opts.w.globals.series[0][opts.dataPointIndex];
+  let s1 = opts.w.globals.series[1][opts.dataPointIndex];
+  let valid0 = s0 !== null && s0 !== undefined;
+  let valid1 = s1 !== null && s1 !== undefined;
+  let val0 = valid0 ? parseFloat(s0) : 0;
+  let val1 = valid1 ? parseFloat(s1) : 0;
+  let tot = val0 + val1;
+  let targetSeries = (valid1 && val1 >= 0) ? 1 : ((valid1 && val1 < 0) ? 0 : (!valid0 && valid1 ? 1 : 0));
+  if (opts.seriesIndex === targetSeries) {
+      return '€' + tot.toFixed(2);
+  }
+  return '';
+}
+`;
+
+const barColorRanges = (low, high) => [
+  { from: -100000, to: low, color: "#10b981" },
+  { from: low, to: high, color: "#f59e0b" },
+  { from: high, to: 100000, color: "#ef4444" },
+];
+
+const baseApexConfig = (yAxisTitle, extra = {}) => ({
+  yaxis: { show: true, title: { text: yAxisTitle } },
+  chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
+  xaxis: { type: "datetime", tooltip: { enabled: false } },
+  tooltip: { enabled: true },
+  fill: { type: "solid", opacity: 0.5 },
+  stroke: { show: true, width: 1.5 },
+  grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
+  ...extra,
+});
+
+const makeApexDataLabels = (enabled, formatter) => ({
+  enabled,
+  offsetY: -15,
+  style: { colors: ["var(--primary-text-color)"] },
+  background: { enabled: false },
+  formatter,
+});
+
+const makeColSeries = (entity, name, color, statsPeriod, isYearly, unit = "") => ({
+  entity,
+  name,
+  type: "column",
+  ...(color ? { color } : {}),
+  ...(unit ? { unit } : {}),
+  show: { datalabels: true },
+  statistics: { type: "change", period: statsPeriod, align: "start" },
+  ...(isYearly ? { group_by: { func: "sum", duration: "1y" } } : {}),
+});
+
+const staticOrConfigApexConfig = (yAxisTitle, thresholds, dataLabelsEnabled, formatter = EVAL_NUMERIC_FORMATTER) =>
+  baseApexConfig(yAxisTitle, {
+    plotOptions: {
+      bar: {
+        borderRadius: 4,
+        columnWidth: "60%",
+        dataLabels: { position: "top" },
+        colors: { ranges: barColorRanges(thresholds[0], thresholds[1]) },
+      },
+    },
+    dataLabels: makeApexDataLabels(dataLabelsEnabled, formatter),
+  });
+
+/**
+ * Builds a dynamic bar chart wrapped in a config-template-card for reactive span & datalabels.
+ * @param {Object} opts
+ * @param {string} opts.entity - Statistic entity to query
+ * @param {string} opts.name - Chart / series title
+ * @param {string} opts.yAxisTitle - Y-axis label
+ * @param {string} opts.selectEntity - HA select entity driving the time span
+ * @param {string} opts.spanUnit - Duration unit ('d', 'w', 'month')
+ * @param {string} opts.statsPeriod - Statistics period ('day', 'week', 'month')
+ * @param {number[]} opts.thresholds - [low, high] color thresholds
+ * @param {number} opts.mobileCutoff - Max units before disabling datalabels on mobile (<600px)
+ * @param {number} opts.desktopCutoff - Max units before disabling datalabels on desktop
+ * @param {string} [opts.unit=""] - Optional unit suffix (e.g. " kWh")
+ */
+const createBarChartCard = ({
+  entity, name, yAxisTitle, selectEntity, spanUnit, statsPeriod, thresholds, mobileCutoff, desktopCutoff, unit,
+}) => ({
+  type: "custom:config-template-card",
+  entities: [selectEntity],
+  card: {
+    type: "custom:apexcharts-card",
+    graph_span: `\${states['${selectEntity}'].state + '${spanUnit}'}`,
+    span: { end: "day" },
+    header: { show: false, title: name },
+    apex_config: staticOrConfigApexConfig(
+      yAxisTitle,
+      thresholds,
+      `\${window.innerWidth < 600 ? parseInt(states['${selectEntity}'].state) <= ${mobileCutoff} : parseInt(states['${selectEntity}'].state) <= ${desktopCutoff}}`
+    ),
+    series: [makeColSeries(entity, name, null, statsPeriod, false, unit)],
+  },
+});
+
+const createYearlyStaticBarChart = ({ entity, name, yAxisTitle, thresholds, unit }) => ({
+  type: "custom:apexcharts-card",
+  graph_span: "10y",
+  span: { end: "day" },
+  header: { show: false, title: name },
+  apex_config: staticOrConfigApexConfig(yAxisTitle, thresholds, true),
+  series: [makeColSeries(entity, name, null, "month", true, unit)],
+});
+
+/**
+ * Generates an async JavaScript string executed within custom:apexcharts-card
+ * to compute unit rate (€/kWh) buckets directly from recorder statistics.
+ */
+const deviceRateDataGen = (devTarget, selectEntity, spanUnit, statsPeriod) =>
+  `return (async () => {
+  const costId = "sensor.sbf2_${devTarget}_cost_rate_cumulative", energyId = "sensor.sbf2_${devTarget}_energy_rate_cumulative";
+  const units = parseInt(hass.states['${selectEntity}']?.state || '7') || 7, end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const mult = ${spanUnit === "d" ? MS_PER_DAY : spanUnit === "w" ? MS_PER_WEEK : MS_PER_MONTH};
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(end.getTime() - (units + 1) * mult).toISOString(),
+    end_time: end.toISOString(),
+    statistic_ids: [costId, energyId],
+    period: '${statsPeriod}'
+  });
+  const costs = (res[costId] || []).slice(-units), energies = res[energyId] || [], energyMap = new Map();
+  energies.forEach(e => energyMap.set(new Date(e.start).getTime(), e.change));
+  const buckets = [];
+  costs.forEach(c => {
+    const kwh = energyMap.get(new Date(c.start).getTime());
+    const val = (c.change != null && kwh != null && kwh > 0) ? parseFloat((c.change / kwh).toFixed(3)) : null;
+    buckets.push([new Date(c.start).getTime(), val]);
+  });
+  return buckets;
+})();`;
+
+const deviceYearlyRateDataGen = (devTarget) =>
+  `return (async () => {
+  const costId = "sensor.sbf2_${devTarget}_cost_rate_cumulative", energyId = "sensor.sbf2_${devTarget}_energy_rate_cumulative";
+  const duration = 365 * ${MS_PER_DAY}, now = new Date(), endD = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(now.getFullYear() - 11, 0, 1).toISOString(),
+    end_time: endD.toISOString(),
+    statistic_ids: [costId, energyId],
+    period: 'month',
+    types: ['change']
+  });
+  const costs = res?.[costId] || [], energies = res?.[energyId] || [], energyMap = new Map();
+  energies.forEach(e => energyMap.set(new Date(e.start).getTime(), e.change));
+  const buckets = [], endTime = endD.getTime();
+  for (let k = 0; k < 12; k++) {
+    const bEnd = endTime - k * duration, bStart = bEnd - duration;
+    let bCost = 0, bKwh = 0, hasData = false;
+    costs.forEach(c => {
+      const ts = new Date(c.start).getTime();
+      if (ts >= bStart && ts < bEnd) {
+        if (c.change != null) { bCost += c.change; hasData = true; }
+        const kwh = energyMap.get(new Date(c.start).getTime());
+        if (kwh != null) bKwh += kwh;
+      }
+    });
+    if (hasData && bKwh > 0) buckets.push([bStart, parseFloat((bCost / bKwh).toFixed(3))]);
+  }
+  return buckets.sort((a, b) => a[0] - b[0]);
+})();`;
+
+const conditionalCumulativeChart = (devTarget, card) => ({
+  type: "conditional",
+  conditions: [
+    { entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`, state_not: "unavailable" },
+    { entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`, state_not: "unknown" },
+  ],
+  card,
+});
+
+const createDeviceRateChart = ({ devTarget, label, selectEntity, spanUnit, statsPeriod, mobileCutoff, desktopCutoff }) =>
+  conditionalCumulativeChart(devTarget, {
+    type: "custom:config-template-card",
+    entities: [selectEntity],
+    card: {
+      type: "custom:apexcharts-card",
+      graph_span: `\${states['${selectEntity}'].state + '${spanUnit}'}`,
+      span: { end: "day" },
+      header: { show: false, title: `${label} (EUR/kWh)` },
+      apex_config: staticOrConfigApexConfig(
+        "EUR/kWh",
+        [0.15, 0.3],
+        `\${window.innerWidth < 600 ? parseInt(states['${selectEntity}'].state) <= ${mobileCutoff} : parseInt(states['${selectEntity}'].state) <= ${desktopCutoff}}`,
+        EVAL_RATE_FORMATTER
+      ),
+      series: [
+        {
+          entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
+          name: `${label} (EUR/kWh)`,
+          color: "#f97316",
+          type: "column",
+          show: { datalabels: true },
+          data_generator: deviceRateDataGen(devTarget, selectEntity, spanUnit, statsPeriod),
+        },
+      ],
+    },
+  });
+
+const createDeviceYearlyRateChart = (devTarget, label) =>
+  conditionalCumulativeChart(devTarget, {
+    type: "custom:apexcharts-card",
+    graph_span: "10y",
+    span: { end: "day" },
+    header: { show: false, title: `${label} (EUR/kWh)` },
+    apex_config: staticOrConfigApexConfig("EUR/kWh", [0.15, 0.3], true, EVAL_RATE_FORMATTER),
+    series: [
+      {
+        entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
+        name: `${label} (EUR/kWh)`,
+        color: "#f97316",
+        type: "column",
+        show: { datalabels: true },
+        group_by: { func: "last", duration: "1y" },
+        data_generator: deviceYearlyRateDataGen(devTarget),
+      },
+    ],
+  });
+
+// ============================================================================
+// 5. DEVICE SUBVIEWS BUILDER
+// ============================================================================
+const DEVICE_TABS = [
+  { period: "Daily", suffix: "daily", sel: "select.sbf_chart_daily_days", unit: "d", stats: "day", chips: CHART_PERIOD_CHIPS.daily, costThresh: [0.5, 1.5], energyThresh: [2.0, 5.0], mCut: 7, dCut: 30 },
+  { period: "Weekly", suffix: "weekly", sel: "select.sbf_chart_weekly_weeks", unit: "w", stats: "week", chips: CHART_PERIOD_CHIPS.weekly, costThresh: [3.5, 10.5], energyThresh: [14.0, 35.0], mCut: 8, dCut: 26 },
+  { period: "Monthly", suffix: "monthly", sel: "select.sbf_chart_monthly_months", unit: "month", stats: "month", chips: CHART_PERIOD_CHIPS.monthly, costThresh: [15.0, 45.0], energyThresh: [60.0, 150.0], mCut: 6, dCut: 24 },
+  { period: "Yearly", suffix: "yearly", titleSuffix: "Last 10 Years", costThresh: [182.5, 547.5], energyThresh: [730.0, 1825.0] },
+  { period: "All-Time", suffix: "cumulative", titleSuffix: "All-Time", costThresh: [500.0, 1500.0], energyThresh: [2000.0, 5000.0] },
+];
+
+const createDeviceSubviewTab = (t, label, devTarget) => {
+  const isYearly = !t.sel;
+  const headerEntity = `sensor.sbf2_${devTarget}_cost_rate_${t.suffix}`;
+  const costChart = isYearly
+    ? createYearlyStaticBarChart({ entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`, name: `${label} (${t.titleSuffix})`, yAxisTitle: "Cost (€)", thresholds: t.costThresh })
+    : createBarChartCard({ entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`, name: label, yAxisTitle: "Cost (€)", selectEntity: t.sel, spanUnit: t.unit, statsPeriod: t.stats, thresholds: t.costThresh, mobileCutoff: t.mCut, desktopCutoff: t.dCut });
+
+  const energyChart = isYearly
+    ? createYearlyStaticBarChart({ entity: `sensor.sbf2_${devTarget}_energy_rate_cumulative`, name: `${label} (Energy)`, yAxisTitle: "Energy (kWh)", thresholds: t.energyThresh, unit: " kWh" })
+    : createBarChartCard({ entity: `sensor.sbf2_${devTarget}_energy_rate_cumulative`, name: `${label} (Energy)`, yAxisTitle: "Energy (kWh)", selectEntity: t.sel, spanUnit: t.unit, statsPeriod: t.stats, thresholds: t.energyThresh, mobileCutoff: t.mCut, desktopCutoff: t.dCut, unit: " kWh" });
+
+  const rateChart = isYearly
+    ? createDeviceYearlyRateChart(devTarget, label)
+    : createDeviceRateChart({
+      devTarget,
+      label,
+      selectEntity: t.sel,
+      spanUnit: t.unit,
+      statsPeriod: t.stats,
+      mobileCutoff: t.mCut,
+      desktopCutoff: t.dCut,
+    });
+
+  const cards = [
+    subviewHeaderCard(headerEntity, label),
+    createPeriodPills("select.sbf_financial_view_period", true),
+    ...(isYearly ? [] : [createChartChips(t.sel, t.chips)]),
+    costChart,
+    energyChart,
+    rateChart,
+  ];
+  return conditionalVerticalStack(t.period, cards);
+};
+
+
+const buildDeviceSubview = (label, devTarget) =>
+  makePanelSubview(
+    `${label} History`,
+    `financials-${slugify(label)}`,
+    DEVICE_TABS.map((t) => createDeviceSubviewTab(t, label, devTarget))
+  );
+
+// ============================================================================
+// 6. SYSTEM SUBVIEWS BUILDER
+// ============================================================================
+const COST_THRESHOLDS = {
+  daily: [0.5, 1.5],
+  weekly: [3.5, 10.5],
+  monthly: [15.0, 45.0],
+  yearly: [182.5, 547.5],
+  allTime: [500.0, 1500.0],
+};
+
+const SYSTEM_SUBVIEW_CONFIGS = [
   {
+    title: "Total System Earnings",
+    path: "financials-total-system-earnings",
+    sensorKey: "system_earnings",
+    getApexConfig: (dLabels) => ({
+      chart: { stacked: true, height: 280, zoom: { enabled: false }, toolbar: { show: false } },
+      stroke: { show: true, width: 1.5, colors: ["#ffc107", "#9c27b0"] },
+      dataLabels: makeApexDataLabels(dLabels, EVAL_STACKED_EARNINGS_FORMATTER),
+    }),
+    getSeries: (statsPeriod, isYearly) => [
+      makeColSeries("sensor.sbf2_solar_only_earnings_rate_cumulative", "Solar", "#ffc107", statsPeriod, isYearly),
+      makeColSeries("sensor.sbf2_battery_added_value_rate_cumulative", "Battery", "#9c27b0", statsPeriod, isYearly),
+    ],
+  },
+  {
+    title: "Solar-Only Earnings",
+    path: "financials-solar-only-earnings",
+    sensorKey: "solar_only_earnings",
+    getApexConfig: (dLabels) => ({
+      stroke: { show: true, width: 1.5, colors: ["#ffc107"] },
+      dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
+    }),
+    getSeries: (statsPeriod, isYearly) => [
+      makeColSeries("sensor.sbf2_solar_only_earnings_rate_cumulative", "Solar-Only Earnings", "#ffc107", statsPeriod, isYearly),
+    ],
+  },
+  {
+    title: "Battery Added Value",
+    path: "financials-battery-added-value",
+    sensorKey: "battery_added_value",
+    getApexConfig: (dLabels) => ({
+      stroke: { show: true, width: 1.5, colors: ["#9c27b0"] },
+      dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
+    }),
+    getSeries: (statsPeriod, isYearly) => [
+      makeColSeries("sensor.sbf2_battery_added_value_rate_cumulative", "Battery Added Value", "#9c27b0", statsPeriod, isYearly),
+    ],
+  },
+  {
+    title: "Effective Cost",
+    path: "financials-effective-cost",
+    sensorKey: "total_system_cost",
+    thresholds: COST_THRESHOLDS,
+    getApexConfig: (dLabels, th = []) => ({
+      plotOptions: {
+        bar: {
+          borderRadius: 4,
+          columnWidth: "60%",
+          dataLabels: { position: "top" },
+          colors: { ranges: barColorRanges(th[0], th[1]) },
+        },
+      },
+      dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
+    }),
+    getSeries: (statsPeriod, isYearly) => [
+      makeColSeries("sensor.sbf2_total_system_cost_rate_cumulative", "Effective Cost", null, statsPeriod, isYearly),
+    ],
+  },
+  {
+    title: "Net Bill",
+    path: "financials-net-bill",
+    sensorKey: "net_grid_cost",
+    thresholds: COST_THRESHOLDS,
+    getApexConfig: (dLabels, th = []) => ({
+      plotOptions: {
+        bar: {
+          borderRadius: 4,
+          columnWidth: "60%",
+          dataLabels: { position: "top" },
+          colors: { ranges: barColorRanges(th[0], th[1]) },
+        },
+      },
+      dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
+    }),
+    getSeries: (statsPeriod, isYearly) => [
+      makeColSeries("sensor.sbf2_net_grid_cost_rate_cumulative", "Net Bill", null, statsPeriod, isYearly),
+    ],
+  },
+];
+
+const SYSTEM_TABS = [
+  { period: "Daily", suffix: "daily", sel: "select.sbf_chart_daily_days", unit: "d", stats: "day", chips: CHART_PERIOD_CHIPS.daily, mCut: 7, dCut: 30, thKey: "daily" },
+  { period: "Weekly", suffix: "weekly", sel: "select.sbf_chart_weekly_weeks", unit: "w", stats: "week", chips: CHART_PERIOD_CHIPS.weekly, mCut: 8, dCut: 26, thKey: "weekly" },
+  { period: "Monthly", suffix: "monthly", sel: "select.sbf_chart_monthly_months", unit: "month", stats: "month", chips: CHART_PERIOD_CHIPS.monthly, mCut: 6, dCut: 24, thKey: "monthly" },
+  { period: "Yearly", titleSuffix: "Last 10 Years", thKey: "yearly" },
+  { period: "All-Time", titleSuffix: "All-Time", thKey: "allTime" },
+];
+
+const createSystemSubviewTab = (t, cfg, th) => {
+  const isYearly = !t.sel;
+  const dLabels = isYearly
+    ? true
+    : `\${window.innerWidth < 600 ? parseInt(states['${t.sel}'].state) <= ${t.mCut || 0} : parseInt(states['${t.sel}'].state) <= ${t.dCut || 0}}`;
+  const statsPeriod = isYearly ? "month" : t.stats;
+  const apexExtra = cfg.getApexConfig(dLabels, th[t.thKey]);
+  const series = cfg.getSeries(statsPeriod, isYearly);
+
+  if (isYearly) {
+    return {
+      type: "conditional",
+      conditions: [{ entity: "select.sbf_financial_view_period", state: t.period }],
+      card: {
+        type: "grid",
+        columns: 1,
+        square: false,
+        card_mod: { style: STYLES.noShadow },
+        cards: [
+          createPeriodPills("select.sbf_financial_view_period", true),
+          {
+            type: "custom:apexcharts-card",
+            graph_span: "10y",
+            span: { end: "day" },
+            header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
+            apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
+            series,
+          },
+        ],
+      },
+    };
+  }
+
+  return conditionalVerticalStack(t.period, [
+    subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
+    createPeriodPills("select.sbf_financial_view_period", true),
+    createChartChips(t.sel, t.chips),
+    {
+      type: "custom:config-template-card",
+      entities: [t.sel],
+      card: {
+        type: "custom:apexcharts-card",
+        graph_span: `\${states['${t.sel}'].state + '${t.unit}'}`,
+        span: { end: "day" },
+        header: { show: false, title: cfg.title },
+        apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
+        series,
+      },
+    },
+  ]);
+};
+
+const buildSystemSubviews = () =>
+  SYSTEM_SUBVIEW_CONFIGS.map((cfg) => {
+    const th = cfg.thresholds || {};
+    return makePanelSubview(
+      `${cfg.title} History`,
+      cfg.path,
+      SYSTEM_TABS.map((t) => createSystemSubviewTab(t, cfg, th))
+    );
+  });
+
+// ============================================================================
+// 7. TOP-LEVEL VIEWS (POWER & FINANCIALS)
+// ============================================================================
+/**
+ * Builds the top-level Power flow view with status cards and individual device breakdowns.
+ * @param {Object} opts
+ * @param {string} opts.prefix - Entity ID prefix (e.g. "sensor.sbf2_")
+ * @param {Object} opts.totPwr - HA state object for total_power_consumption sensor
+ * @param {Object} opts.states - Full hass.states dictionary
+ * @param {string[]} opts.mainDevs - Filtered main tracked device entity IDs
+ * @param {string[]} opts.subDevs - Subset device entity IDs
+ * @param {Object} opts.names - Device entity ID → friendly name mapping
+ * @param {string} opts.untrackedSensor - Entity ID for untracked power
+ * @param {string} opts.dashUrl - Current dashboard base URL
+ */
+const buildPowerView = ({ prefix, totPwr, states, mainDevs, subDevs, names, untrackedSensor, dashUrl }) => {
+  const gridSensor = totPwr?.attributes?.grid_sensor || "sensor.dummy_grid_power";
+  const solarSensor = totPwr?.attributes?.solar_sensor || "sensor.dummy_solar_power";
+  const batSensor = totPwr?.attributes?.battery_sensor;
+  const priceSensor = totPwr?.attributes?.price_sensor;
+
+  let socSensor = null;
+  let tempSensor = null;
+  if (batSensor) {
+    const g1 = batSensor.replace("_power", "");
+    const g2 = batSensor + "_soc";
+    const g3 = batSensor.replace("_power", "_soc");
+    if (states[g1]?.attributes?.unit_of_measurement === "%") socSensor = g1;
+    else if (states[g2]) socSensor = g2;
+    else if (states[g3]) socSensor = g3;
+
+    const t1 = batSensor.replace("_power", "_temperature");
+    const t2 = batSensor.replace("_battery_power", "_battery_temperature");
+    if (states[t1]) tempSensor = t1;
+    else if (states[t2]) tempSensor = t2;
+  }
+
+  const makeBreakdownCard = (entityId, label, slug) => ({
+    type: "custom:mushroom-template-card",
+    entity: entityId,
+    primary: label,
+    secondary: `{{ states('${entityId}') | float(0) | round(0) }} W`,
+    icon: getSmartIcon(label, entityId, states),
+    icon_color: `{% set p = states('${entityId}') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}`,
+    layout: "horizontal",
+    fill_container: true,
+    tap_action: { action: "navigate", navigation_path: `${dashUrl}/power-${slug}` },
+    card_mod: { style: STYLES.transparentCard },
+  });
+
+  const getDevLabel = (dev) => names[dev] || dev.replace("sensor.", "").replace("_power", "").replace("_", " ");
+
+  const trackedCards = [
+    ...mainDevs.map((dev) => makeBreakdownCard(dev, getDevLabel(dev), slugify(getDevLabel(dev)))),
+    makeBreakdownCard(untrackedSensor, "Untracked", "untracked"),
+  ];
+
+  const subsetCards = subDevs.map((dev) => makeBreakdownCard(dev, getDevLabel(dev), slugify(getDevLabel(dev))));
+
+  const flowIndividuals = [
+    ...mainDevs.map((dev) => ({
+      entity: dev,
+      name: getDevLabel(dev),
+      icon: getSmartIcon(getDevLabel(dev), dev, states),
+      secondary_info: {},
+    })),
+    { entity: untrackedSensor, name: "Untracked", icon: "mdi:help-network-outline", secondary_info: {} },
+  ];
+
+  const statusCards = [
+    makeMushroomTemplateCard({
+      entity: `${prefix}system_earnings_rate_daily`,
+      primary:
+        `{% set sol = states('${prefix}solar_only_earnings_rate_daily') | float(0) | round(2) %} {% set bat = states('${prefix}battery_added_value_rate_daily') | float(0) | round(2) %} {% set tot = states('${prefix}system_earnings_rate_daily') | float(0) | round(2) %} {{ tot }} / {{ sol }} / {{ bat }}`,
+      secondary: "Daily Earnings",
+      icon: "mdi:finance",
+      icon_color: "green",
+      multiline: false,
+    }),
+    ...(priceSensor ? [{ type: "custom:mushroom-entity-card", entity: priceSensor, name: "Price", icon: "mdi:cash", icon_color: "amber", layout: "vertical", primary_info: "state", secondary_info: "name" }] : []),
+    ...(tempSensor ? [{ type: "custom:mushroom-entity-card", entity: tempSensor, name: "Battery Temp", icon: "mdi:thermometer", icon_color: "orange", layout: "vertical", primary_info: "state", secondary_info: "name" }] : []),
+  ];
+
+  return {
     type: "sections",
     max_columns: 3,
     title: "Power",
@@ -18,33 +793,17 @@ const GOLDEN_VIEWS = [
             type: "custom:power-flow-card-plus",
             entities: {
               battery: {
-                entity: "sensor.dummy_battery_power",
-                state_of_charge: "sensor.dummy_battery_soc",
-                show_state_of_charge: true,
-                state_of_charge_unit_white_space: true,
+                entity: batSensor || "sensor.dummy_battery_power",
+                ...(socSensor ? { state_of_charge: socSensor, show_state_of_charge: true, state_of_charge_unit_white_space: true } : (!batSensor ? { state_of_charge: "sensor.dummy_battery_soc", show_state_of_charge: true, state_of_charge_unit_white_space: true } : {})),
               },
-              grid: {
-                entity: "sensor.dummy_grid_power",
-                secondary_info: {},
-              },
-              solar: {
-                display_zero_state: true,
-                secondary_info: {},
-                entity: "sensor.dummy_solar_power",
-              },
+              grid: { entity: gridSensor, secondary_info: {} },
+              solar: { display_zero_state: true, secondary_info: {}, entity: solarSensor },
               fossil_fuel_percentage: { secondary_info: {} },
-              home: {
-                entity: "sensor.sbf2_total_power_consumption",
-                secondary_info: {},
-              },
-              individual: [],
+              home: { entity: `${prefix}total_power_consumption`, secondary_info: {} },
+              individual: flowIndividuals,
             },
             clickable_entities: true,
-            display_zero_lines: {
-              mode: "show",
-              transparency: 50,
-              grey_color: [189, 189, 189],
-            },
+            display_zero_lines: { mode: "show", transparency: 50, grey_color: [189, 189, 189] },
             use_new_flow_rate_model: true,
             base_decimals: 0,
             kilo_decimals: 1,
@@ -54,96 +813,80 @@ const GOLDEN_VIEWS = [
             min_expected_power: 0.01,
             kilo_threshold: 1000,
           },
-          {
-            type: "grid",
-            columns: 3,
-            square: false,
-            card_mod: {
-              style:
-                ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-            },
-            cards: [
-              {
-                type: "custom:mushroom-template-card",
-                entity: "sensor.sbf2_system_earnings_rate_daily",
-                primary:
-                  "{% set sol = states('sensor.sbf2_solar_only_earnings_rate_daily') | float(0) | round(2) %} {% set bat = states('sensor.sbf2_battery_added_value_rate_daily') | float(0) | round(2) %} {% set tot = states('sensor.sbf2_system_earnings_rate_daily') | float(0) | round(2) %} {{ tot }} / {{ sol }} / {{ bat }}",
-                secondary: "Daily Earnings",
-                icon: "mdi:finance",
-                icon_color: "green",
-                layout: "vertical",
-                multiline_secondary: false,
-              },
-              {
-                type: "custom:mushroom-entity-card",
-                entity: "sensor.dummy_price",
-                name: "Price",
-                icon: "mdi:cash",
-                icon_color: "amber",
-                layout: "vertical",
-                primary_info: "state",
-                secondary_info: "name",
-              },
-              {
-                type: "custom:mushroom-entity-card",
-                entity: "sensor.dummy_battery_temp",
-                name: "Battery Temp",
-                icon: "mdi:thermometer",
-                icon_color: "orange",
-                layout: "vertical",
-                primary_info: "state",
-                secondary_info: "name",
-              },
-            ],
-          },
+          grid3Cols(statusCards),
         ],
       },
       {
         type: "grid",
         cards: [
-          {
-            type: "heading",
-            heading: "Main devices",
-            icon: "mdi:domain",
-          },
-          {
-            type: "custom:stack-in-card",
-            cards: [
-              {
-                type: "grid",
-                columns: 2,
-                square: false,
-                card_mod: {
-                  style:
-                    ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                },
-                cards: [
-                ],
-              },
-            ],
-          },
+          { type: "heading", heading: "Main devices", icon: "mdi:domain" },
+          stackGridCards(trackedCards),
           { type: "heading", heading: "Subset Devices", icon: "mdi:devices" },
-          {
-            type: "custom:stack-in-card",
-            cards: [
-              {
-                type: "grid",
-                columns: 2,
-                square: false,
-                card_mod: {
-                  style:
-                    ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                },
-                cards: [
-                ],
-              },
-            ],
-          },
+          stackGridCards(subsetCards),
         ],
       },
     ],
-  },
-  {
+  };
+};
+
+const FIN_PERIODS = [
+  { state: "Daily", suffix: "daily", mult: 1 },
+  { state: "Weekly", suffix: "weekly", mult: 7 },
+  { state: "Monthly", suffix: "monthly", mult: 30 },
+  { state: "Yearly", suffix: "yearly", mult: 365 },
+  { state: "All-Time", suffix: "cumulative", mult: 365 },
+];
+
+/**
+ * Builds the top-level Financials view across periods (Daily/Weekly/Monthly/Yearly/All-Time).
+ * @param {Object} opts
+ * @param {string[]} opts.mainDevs - Filtered main tracked device entity IDs
+ * @param {string[]} opts.subDevs - Subset device entity IDs
+ * @param {string[]} opts.tracked - All tracked device entity IDs
+ * @param {Object} opts.states - Full hass.states dictionary
+ * @param {Object} opts.names - Device entity ID → friendly name mapping
+ * @param {string} opts.prefix - Entity ID prefix (e.g. "sensor.sbf2_")
+ * @param {string} opts.untrackedSensor - Entity ID for untracked power
+ * @param {string} opts.dashUrl - Current dashboard base URL
+ */
+const buildFinancialsView = ({ mainDevs, subDevs, tracked, states, names, prefix, untrackedSensor, dashUrl }) => {
+  const mainCardsByPeriod = {};
+  const subsetCardsByPeriod = {};
+
+  FIN_PERIODS.forEach((p) => {
+    const low = 0.5 * p.mult;
+    const high = 1.5 * p.mult;
+    const makeFinCard = (dev) => {
+      const meta = getDevInfo(dev, tracked, states, names, prefix, untrackedSensor);
+      return makeDeviceFinCard({
+        devName: meta.label,
+        devTarget: meta.devTarget,
+        devId: dev,
+        suffix: p.suffix,
+        lowThresh: low,
+        highThresh: high,
+        dashUrl,
+        states,
+      });
+    };
+
+    mainCardsByPeriod[p.state] = [
+      ...mainDevs.map(makeFinCard),
+      makeDeviceFinCard({
+        devName: "Untracked",
+        devTarget: "untracked",
+        devId: untrackedSensor,
+        suffix: p.suffix,
+        lowThresh: low,
+        highThresh: high,
+        dashUrl,
+        states,
+      }),
+    ];
+    subsetCardsByPeriod[p.state] = subDevs.map(makeFinCard);
+  });
+
+  return {
     type: "sections",
     max_columns: 2,
     title: "Financials",
@@ -152,3226 +895,186 @@ const GOLDEN_VIEWS = [
       {
         type: "grid",
         cards: [
-          {
-            type: "custom:mushroom-chips-card",
-            alignment: "center",
-            card_mod: {
-              style:
-                "ha-card {\n  background: rgba(var(--rgb-primary-text-color), 0.05);\n  border-radius: 24px;\n  padding: 4px;\n  margin: 0 auto;\n  width: fit-content;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n",
-            },
-            chips: [
-              {
-                type: "template",
-                content: "Daily",
-                card_mod: {
-                  style:
-                    "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Daily') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Daily') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Daily') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Daily') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                },
-                tap_action: {
-                  action: "call-service",
-                  service: "select.select_option",
-                  target: { entity_id: "select.sbf_financial_view_period" },
-                  data: { option: "Daily" },
-                },
-              },
-              {
-                type: "template",
-                content: "Weekly",
-                card_mod: {
-                  style:
-                    "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Weekly') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Weekly') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Weekly') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Weekly') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                },
-                tap_action: {
-                  action: "call-service",
-                  service: "select.select_option",
-                  target: { entity_id: "select.sbf_financial_view_period" },
-                  data: { option: "Weekly" },
-                },
-              },
-              {
-                type: "template",
-                content: "Monthly",
-                card_mod: {
-                  style:
-                    "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Monthly') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Monthly') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Monthly') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Monthly') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                },
-                tap_action: {
-                  action: "call-service",
-                  service: "select.select_option",
-                  target: { entity_id: "select.sbf_financial_view_period" },
-                  data: { option: "Monthly" },
-                },
-              },
-              {
-                type: "template",
-                content: "Yearly",
-                card_mod: {
-                  style:
-                    "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Yearly') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Yearly') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Yearly') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Yearly') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                },
-                tap_action: {
-                  action: "call-service",
-                  service: "select.select_option",
-                  target: { entity_id: "select.sbf_financial_view_period" },
-                  data: { option: "Yearly" },
-                },
-              },
-              {
-                type: "template",
-                content: "All",
-                card_mod: {
-                  style:
-                    "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'All-Time') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'All-Time') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'All-Time') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'All-Time') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                },
-                tap_action: {
-                  action: "call-service",
-                  service: "select.select_option",
-                  target: { entity_id: "select.sbf_financial_view_period" },
-                  data: { option: "All-Time" },
-                },
-              },
-            ],
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Daily" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Earnings",
-                  icon: "mdi:piggy-bank",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_system_earnings_rate_daily",
-                      primary:
-                        "{{ states('sensor.sbf2_system_earnings_rate_daily') | float(0) | round(2) }} \u20ac",
-                      secondary: "Total",
-                      icon: "mdi:finance",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-total-system-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_solar_only_earnings_rate_daily",
-                      primary:
-                        "{{ states('sensor.sbf2_solar_only_earnings_rate_daily') | float(0) | round(2) }} \u20ac",
-                      secondary: "Solar Only",
-                      icon: "mdi:solar-power",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-solar-only-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_battery_added_value_rate_daily",
-                      primary:
-                        "{{ states('sensor.sbf2_battery_added_value_rate_daily') | float(0) | round(2) }} \u20ac",
-                      secondary: "Battery Val",
-                      icon: "mdi:battery-arrow-up",
-                      icon_color: "purple",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-battery-added-value",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Total House Costs",
-                  icon: "mdi:home-lightning-bolt",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_cost_rate_daily",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_daily')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Effective{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:currency-eur",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-effective-cost",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_energy_rate_daily",
-                      primary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_daily')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_daily')|float(0) %} {% set cost = (net + earn) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_daily')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_daily')|float(0) %} {% set cost = (net + earn) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Gross{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:cash-remove",
-                      icon_color: "red",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_net_grid_cost_rate_daily",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_daily')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_net_grid_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Net Bill{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:receipt-text-check",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-net-bill",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Weekly" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Earnings",
-                  icon: "mdi:piggy-bank",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_system_earnings_rate_weekly",
-                      primary:
-                        "{{ states('sensor.sbf2_system_earnings_rate_weekly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Total",
-                      icon: "mdi:finance",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-total-system-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_solar_only_earnings_rate_weekly",
-                      primary:
-                        "{{ states('sensor.sbf2_solar_only_earnings_rate_weekly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Solar Only",
-                      icon: "mdi:solar-power",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-solar-only-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_battery_added_value_rate_weekly",
-                      primary:
-                        "{{ states('sensor.sbf2_battery_added_value_rate_weekly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Battery Val",
-                      icon: "mdi:battery-arrow-up",
-                      icon_color: "purple",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-battery-added-value",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Total House Costs",
-                  icon: "mdi:home-lightning-bolt",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_cost_rate_weekly",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_weekly')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Effective{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:currency-eur",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-effective-cost",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_energy_rate_weekly",
-                      primary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_weekly')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_weekly')|float(0) %} {% set cost = (net + earn) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_weekly')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_weekly')|float(0) %} {% set cost = (net + earn) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Gross{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:cash-remove",
-                      icon_color: "red",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_net_grid_cost_rate_weekly",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_weekly')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_net_grid_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Net Bill{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:receipt-text-check",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-net-bill",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              {
-                entity: "select.sbf_financial_view_period",
-                state: "Monthly",
-              },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Earnings",
-                  icon: "mdi:piggy-bank",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_system_earnings_rate_monthly",
-                      primary:
-                        "{{ states('sensor.sbf2_system_earnings_rate_monthly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Total",
-                      icon: "mdi:finance",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-total-system-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_solar_only_earnings_rate_monthly",
-                      primary:
-                        "{{ states('sensor.sbf2_solar_only_earnings_rate_monthly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Solar Only",
-                      icon: "mdi:solar-power",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-solar-only-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_battery_added_value_rate_monthly",
-                      primary:
-                        "{{ states('sensor.sbf2_battery_added_value_rate_monthly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Battery Val",
-                      icon: "mdi:battery-arrow-up",
-                      icon_color: "purple",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-battery-added-value",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Total House Costs",
-                  icon: "mdi:home-lightning-bolt",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_cost_rate_monthly",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_monthly')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Effective{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:currency-eur",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-effective-cost",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_energy_rate_monthly",
-                      primary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_monthly')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_monthly')|float(0) %} {% set cost = (net + earn) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_monthly')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_monthly')|float(0) %} {% set cost = (net + earn) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Gross{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:cash-remove",
-                      icon_color: "red",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_net_grid_cost_rate_monthly",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_monthly')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_net_grid_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Net Bill{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:receipt-text-check",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-net-bill",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Yearly" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Earnings",
-                  icon: "mdi:piggy-bank",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_system_earnings_rate_yearly",
-                      primary:
-                        "{{ states('sensor.sbf2_system_earnings_rate_yearly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Total",
-                      icon: "mdi:finance",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-total-system-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_solar_only_earnings_rate_yearly",
-                      primary:
-                        "{{ states('sensor.sbf2_solar_only_earnings_rate_yearly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Solar Only",
-                      icon: "mdi:solar-power",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-solar-only-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_battery_added_value_rate_yearly",
-                      primary:
-                        "{{ states('sensor.sbf2_battery_added_value_rate_yearly') | float(0) | round(2) }} \u20ac",
-                      secondary: "Battery Val",
-                      icon: "mdi:battery-arrow-up",
-                      icon_color: "purple",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-battery-added-value",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Total House Costs",
-                  icon: "mdi:home-lightning-bolt",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_cost_rate_yearly",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_yearly')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Effective{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:currency-eur",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-effective-cost",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_energy_rate_yearly",
-                      primary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_yearly')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_yearly')|float(0) %} {% set cost = (net + earn) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_yearly')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_yearly')|float(0) %} {% set cost = (net + earn) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Gross{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:cash-remove",
-                      icon_color: "red",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_net_grid_cost_rate_yearly",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_yearly')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_net_grid_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Net Bill{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:receipt-text-check",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-net-bill",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              {
-                entity: "select.sbf_financial_view_period",
-                state: "All-Time",
-              },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Earnings",
-                  icon: "mdi:piggy-bank",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_system_earnings_rate_cumulative",
-                      primary:
-                        "{{ states('sensor.sbf2_system_earnings_rate_cumulative') | float(0) | round(2) }} \u20ac",
-                      secondary: "Total",
-                      icon: "mdi:finance",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-total-system-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_solar_only_earnings_rate_cumulative",
-                      primary:
-                        "{{ states('sensor.sbf2_solar_only_earnings_rate_cumulative') | float(0) | round(2) }} \u20ac",
-                      secondary: "Solar Only",
-                      icon: "mdi:solar-power",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-solar-only-earnings",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_battery_added_value_rate_cumulative",
-                      primary:
-                        "{{ states('sensor.sbf2_battery_added_value_rate_cumulative') | float(0) | round(2) }} \u20ac",
-                      secondary: "Battery Val",
-                      icon: "mdi:battery-arrow-up",
-                      icon_color: "purple",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-battery-added-value",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Total House Costs",
-                  icon: "mdi:home-lightning-bolt",
-                },
-                {
-                  type: "grid",
-                  columns: 3,
-                  square: false,
-                  card_mod: {
-                    style:
-                      ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  border: none !important;\n  margin: 0px !important;\n}\n",
-                  },
-                  cards: [
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_cost_rate_cumulative",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_cumulative')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_total_system_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Effective{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:currency-eur",
-                      icon_color: "amber",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-effective-cost",
-                      },
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_total_system_energy_rate_cumulative",
-                      primary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_cumulative')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_cumulative')|float(0) %} {% set cost = (net + earn) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set net = states('sensor.sbf2_net_grid_cost_rate_cumulative')|float(0) %} {% set earn = states('sensor.sbf2_system_earnings_rate_cumulative')|float(0) %} {% set cost = (net + earn) %} {% set kwh = states('sensor.sbf2_total_system_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Gross{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:cash-remove",
-                      icon_color: "red",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                    },
-                    {
-                      type: "custom:mushroom-template-card",
-                      entity: "sensor.sbf2_net_grid_cost_rate_cumulative",
-                      primary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_cumulative')|float(0) %} {{ cost | round(2) }} \u20ac",
-                      secondary:
-                        "{% set cost = states('sensor.sbf2_net_grid_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_net_grid_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(2) if kwh != 0 else 0 %} Net Bill{{ '\\n' }}{{ kwh | round(1) }} kWh @ \u20ac{{ avg }}",
-                      icon: "mdi:receipt-text-check",
-                      icon_color: "green",
-                      layout: "vertical",
-                      multiline_secondary: true,
-                      tap_action: {
-                        action: "navigate",
-                        navigation_path:
-                          "/lovelace-battery/financials-net-bill",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          },
+          createPeriodPills("select.sbf_financial_view_period"),
+          ...FIN_PERIODS.map((p) => createFinancialsConditional(p.state, p.suffix, dashUrl)),
         ],
       },
       {
         type: "grid",
-        cards: [
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Daily" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Main devices",
-                  icon: "mdi:domain",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_template_device_cost_rate_daily",
-                          primary: "Template Device",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_template_device_cost_rate_daily')|float(0) %} {% set kwh = states('sensor.sbf2_dev_template_device_energy_rate_daily')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:countertop",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_template_device_cost_rate_daily') | float(0) %} {% if c < 0.5 %} green {% elif c < 1.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Subset Devices",
-                  icon: "mdi:devices",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Weekly" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Main devices",
-                  icon: "mdi:domain",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_template_device_cost_rate_weekly",
-                          primary: "Template Device",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_template_device_cost_rate_weekly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_template_device_energy_rate_weekly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:countertop",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_template_device_cost_rate_weekly') | float(0) %} {% if c < 3.5 %} green {% elif c < 10.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Subset Devices",
-                  icon: "mdi:devices",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              {
-                entity: "select.sbf_financial_view_period",
-                state: "Monthly",
-              },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Main devices",
-                  icon: "mdi:domain",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_template_device_cost_rate_monthly",
-                          primary: "Template Device",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_template_device_cost_rate_monthly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_template_device_energy_rate_monthly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:countertop",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_template_device_cost_rate_monthly') | float(0) %} {% if c < 15.0 %} green {% elif c < 45.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Subset Devices",
-                  icon: "mdi:devices",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Yearly" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Main devices",
-                  icon: "mdi:domain",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity: "sensor.sbf2_dev_template_device_cost_rate_yearly",
-                          primary: "Template Device",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_template_device_cost_rate_yearly')|float(0) %} {% set kwh = states('sensor.sbf2_dev_template_device_energy_rate_yearly')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:countertop",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_template_device_cost_rate_yearly') | float(0) %} {% if c < 182.5 %} green {% elif c < 547.5 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Subset Devices",
-                  icon: "mdi:devices",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              {
-                entity: "select.sbf_financial_view_period",
-                state: "All-Time",
-              },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "heading",
-                  heading: "Main devices",
-                  icon: "mdi:domain",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                        {
-                          type: "custom:mushroom-template-card",
-                          entity:
-                            "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                          primary: "Template Device",
-                          secondary:
-                            "{% set cost = states('sensor.sbf2_dev_template_device_cost_rate_cumulative')|float(0) %} {% set kwh = states('sensor.sbf2_dev_template_device_energy_rate_cumulative')|float(0) %} {% set avg = (cost / kwh) | round(3) if kwh != 0 else 0 %} \u20ac{{ cost | round(2) }} ({{ kwh | round(2) }} @ {{ avg }})",
-                          icon: "mdi:countertop",
-                          icon_color:
-                            "{% set c = states('sensor.sbf2_dev_template_device_cost_rate_cumulative') | float(0) %} {% if c < 500.0 %} green {% elif c < 1500.0 %} orange {% else %} red {% endif %}",
-                          layout: "horizontal",
-                          fill_container: true,
-                          tap_action: {
-                            action: "navigate",
-                            navigation_path:
-                              "/lovelace-battery/financials-template_device",
-                          },
-                          card_mod: {
-                            style:
-                              "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  type: "heading",
-                  heading: "Subset Devices",
-                  icon: "mdi:devices",
-                },
-                {
-                  type: "custom:stack-in-card",
-                  cards: [
-                    {
-                      type: "grid",
-                      columns: 2,
-                      square: false,
-                      card_mod: {
-                        style:
-                          ":host {\n  --grid-card-gap: 0px;\n}\nha-card {\n  box-shadow: none !important;\n  background: none !important;\n  margin: 0px !important;\n}\n",
-                      },
-                      cards: [
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        ],
+        cards: FIN_PERIODS.map((p) =>
+          createDeviceSection(p.state, p.suffix, mainCardsByPeriod[p.state], subsetCardsByPeriod[p.state])
+        ),
       },
     ],
-  },
-  {
-    title: "Template Device History",
-    path: "financials-template_device",
-    subview: true,
-    type: "panel",
-    cards: [
-      {
-        type: "vertical-stack",
-        cards: [
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Daily" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "custom:mushroom-template-card",
-                  entity: "sensor.sbf2_dev_template_device_cost_rate_daily",
-                  primary: "Template Device",
-                  icon_type: "none",
-                  tap_action: {
-                    action: "more-info",
-                    entity: "sensor.sbf2_dev_template_device_cost_rate_daily",
-                  },
-                  card_mod: {
-                    style:
-                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
-                  },
-                },
-                {
-                  type: "custom:mushroom-chips-card",
-                  alignment: "center",
-                  chips: [
-                    {
-                      type: "template",
-                      content: "7 Days",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: { entity_id: "select.sbf_chart_daily_days" },
-                        data: { option: "7" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "14 Days",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: { entity_id: "select.sbf_chart_daily_days" },
-                        data: { option: "14" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "30 Days",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: { entity_id: "select.sbf_chart_daily_days" },
-                        data: { option: "30" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "60 Days",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: { entity_id: "select.sbf_chart_daily_days" },
-                        data: { option: "60" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "90 Days",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: { entity_id: "select.sbf_chart_daily_days" },
-                        data: { option: "90" },
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "custom:config-template-card",
-                  entities: ["select.sbf_chart_daily_days"],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span:
-                      "${states['select.sbf_chart_daily_days'].state + 'd'}",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "Cost (€)" } },
-                      chart: {
-                        height: 280,
-                        zoom: { enabled: false },
-                        toolbar: { show: false },
-                      },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: {
-                        bar: {
-                          borderRadius: 4,
-                          columnWidth: "60%",
-                          dataLabels: { position: "top" },
-                          colors: {
-                            ranges: [
-                              { from: -100000, to: 0.5, color: "#10b981" },
-                              { from: 0.5, to: 1.5, color: "#f59e0b" },
-                              { from: 1.5, to: 100000, color: "#ef4444" },
-                            ],
-                          },
-                        },
-                      },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled:
-                          "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}",
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter:
-                          "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                      },
-                      grid: {
-                        borderColor: "rgba(128, 128, 128, 0.2)",
-                        strokeDashArray: 2,
-                      },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                        name: "Template Device",
-                        type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "change", period: "day" },
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "custom:config-template-card",
-                  entities: ["select.sbf_chart_daily_days"],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span:
-                      "${states['select.sbf_chart_daily_days'].state + 'd'}",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device (Energy)" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "Energy (kWh)" } },
-                      chart: {
-                        height: 280,
-                        zoom: { enabled: false },
-                        toolbar: { show: false },
-                      },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: {
-                        bar: {
-                          borderRadius: 4,
-                          columnWidth: "60%",
-                          dataLabels: { position: "top" },
-                          colors: {
-                            ranges: [
-                              { from: -100000, to: 2.0, color: "#10b981" },
-                              { from: 2.0, to: 5.0, color: "#f59e0b" },
-                              { from: 5.0, to: 100000, color: "#ef4444" },
-                            ],
-                          },
-                        },
-                      },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled:
-                          "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}",
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter:
-                          "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                      },
-                      grid: {
-                        borderColor: "rgba(128, 128, 128, 0.2)",
-                        strokeDashArray: 2,
-                      },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
-                        name: "Template Device (Energy)",
-                        unit: " kWh", type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "change", period: "day" },
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "conditional",
-                  conditions: [
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_daily", state_not: "unavailable" },
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_daily", state_not: "unknown" }
-                  ],
-                  card: {
-                    type: "custom:config-template-card",
-                    entities: ["select.sbf_chart_daily_days"],
-                    card: {
-                      type: "custom:apexcharts-card",
-                      graph_span: "${states['select.sbf_chart_daily_days'].state + 'd'}",
-                      span: { end: "day" },
-                      header: { show: false, title: "Template Device (EUR/kWh)" },
-                      apex_config: {
-                        yaxis: { show: true, title: { text: "EUR/kWh" }, labels: { formatter: "EVAL:function(val) { return parseFloat(val).toFixed(3); }" } },
-                        chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
-                        xaxis: { type: "datetime", tooltip: { enabled: false } },
-                        tooltip: { enabled: true },
-                        plotOptions: {
-                          bar: {
-                            borderRadius: 4,
-                            columnWidth: "60%",
-                            dataLabels: { position: "top" },
-                            colors: {
-                              ranges: [
-                                { from: -100000, to: 0.15, color: "#10b981" },
-                                { from: 0.15, to: 0.30, color: "#f59e0b" },
-                                { from: 0.30, to: 100000, color: "#ef4444" },
-                              ],
-                            },
-                          },
-                        },
-                        fill: { type: "solid", opacity: 0.5 },
-                        stroke: { show: true, width: 1.5 },
-                        dataLabels: {
-                          enabled: "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}",
-                          offsetY: -15,
-                          style: { colors: ["var(--primary-text-color)"] },
-                          background: { enabled: false },
-                          formatter: "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n",
-                        },
-                        grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
-                      },
-                      series: [
-                        {
-                          entity: "sensor.sbf2_dev_template_device_avg_rate_daily",
-                          name: "Template Device (EUR/kWh)",
-                          color: "#f97316",
-                          type: "column",
-                          show: { datalabels: true },
-                          statistics: { type: "mean", period: "day" },
-                        },
-                      ],
-                    },
-                  },
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Weekly" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "custom:mushroom-template-card",
-                  entity: "sensor.sbf2_dev_template_device_cost_rate_weekly",
-                  primary: "Template Device",
-                  icon_type: "none",
-                  tap_action: {
-                    action: "more-info",
-                    entity: "sensor.sbf2_dev_template_device_cost_rate_weekly",
-                  },
-                  card_mod: {
-                    style:
-                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
-                  },
-                },
-                {
-                  type: "custom:mushroom-chips-card",
-                  alignment: "center",
-                  chips: [
-                    {
-                      type: "template",
-                      content: "4 Weeks",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_weekly_weeks",
-                        },
-                        data: { option: "4" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "8 Weeks",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_weekly_weeks",
-                        },
-                        data: { option: "8" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "12 Weeks",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_weekly_weeks",
-                        },
-                        data: { option: "12" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "26 Weeks",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_weekly_weeks",
-                        },
-                        data: { option: "26" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "52 Weeks",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_weekly_weeks",
-                        },
-                        data: { option: "52" },
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "custom:config-template-card",
-                  entities: ["select.sbf_chart_weekly_weeks"],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span:
-                      "${states['select.sbf_chart_weekly_weeks'].state + 'w'}",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "Cost (€)" } },
-                      chart: {
-                        height: 280,
-                        zoom: { enabled: false },
-                        toolbar: { show: false },
-                      },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: {
-                        bar: {
-                          borderRadius: 4,
-                          columnWidth: "60%",
-                          dataLabels: { position: "top" },
-                          colors: {
-                            ranges: [
-                              { from: -100000, to: 3.5, color: "#10b981" },
-                              { from: 3.5, to: 10.5, color: "#f59e0b" },
-                              { from: 10.5, to: 100000, color: "#ef4444" },
-                            ],
-                          },
-                        },
-                      },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled:
-                          "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}",
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter:
-                          "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                      },
-                      grid: {
-                        borderColor: "rgba(128, 128, 128, 0.2)",
-                        strokeDashArray: 2,
-                      },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                        name: "Template Device",
-                        type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "change", period: "week" },
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "custom:config-template-card",
-                  entities: ["select.sbf_chart_weekly_weeks"],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span:
-                      "${states['select.sbf_chart_weekly_weeks'].state + 'w'}",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device (Energy)" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "Energy (kWh)" } },
-                      chart: {
-                        height: 280,
-                        zoom: { enabled: false },
-                        toolbar: { show: false },
-                      },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: {
-                        bar: {
-                          borderRadius: 4,
-                          columnWidth: "60%",
-                          dataLabels: { position: "top" },
-                          colors: {
-                            ranges: [
-                              { from: -100000, to: 14.0, color: "#10b981" },
-                              { from: 14.0, to: 35.0, color: "#f59e0b" },
-                              { from: 35.0, to: 100000, color: "#ef4444" },
-                            ],
-                          },
-                        },
-                      },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled:
-                          "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}",
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter:
-                          "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                      },
-                      grid: {
-                        borderColor: "rgba(128, 128, 128, 0.2)",
-                        strokeDashArray: 2,
-                      },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
-                        name: "Template Device (Energy)",
-                        unit: " kWh", type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "change", period: "week" },
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "conditional",
-                  conditions: [
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_weekly", state_not: "unavailable" },
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_weekly", state_not: "unknown" }
-                  ],
-                  card: {
-                    type: "custom:config-template-card",
-                    entities: ["select.sbf_chart_weekly_weeks"],
-                    card: {
-                      type: "custom:apexcharts-card",
-                      graph_span: "${states['select.sbf_chart_weekly_weeks'].state + 'w'}",
-                      span: { end: "week" },
-                      header: { show: false, title: "Template Device (EUR/kWh)" },
-                      apex_config: {
-                        yaxis: { show: true, title: { text: "EUR/kWh" }, labels: { formatter: "EVAL:function(val) { return parseFloat(val).toFixed(3); }" } },
-                        chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
-                        xaxis: { type: "datetime", tooltip: { enabled: false } },
-                        tooltip: { enabled: true },
-                        plotOptions: {
-                          bar: {
-                            borderRadius: 4,
-                            columnWidth: "60%",
-                            dataLabels: { position: "top" },
-                            colors: {
-                              ranges: [
-                                { from: -100000, to: 0.15, color: "#10b981" },
-                                { from: 0.15, to: 0.30, color: "#f59e0b" },
-                                { from: 0.30, to: 100000, color: "#ef4444" },
-                              ],
-                            },
-                          },
-                        },
-                        fill: { type: "solid", opacity: 0.5 },
-                        stroke: { show: true, width: 1.5 },
-                        dataLabels: {
-                          enabled: "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 4 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 12}",
-                          offsetY: -15,
-                          style: { colors: ["var(--primary-text-color)"] },
-                          background: { enabled: false },
-                          formatter: "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n",
-                        },
-                        grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
-                      },
-                      series: [
-                        {
-                          entity: "sensor.sbf2_dev_template_device_avg_rate_weekly",
-                          name: "Template Device (EUR/kWh)",
-                          color: "#f97316",
-                          type: "column",
-                          show: { datalabels: true },
-                          statistics: { type: "mean", period: "week" },
-                        },
-                      ],
-                    },
-                  },
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              {
-                entity: "select.sbf_financial_view_period",
-                state: "Monthly",
-              },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "custom:mushroom-template-card",
-                  entity: "sensor.sbf2_dev_template_device_cost_rate_monthly",
-                  primary: "Template Device",
-                  icon_type: "none",
-                  tap_action: {
-                    action: "more-info",
-                    entity: "sensor.sbf2_dev_template_device_cost_rate_monthly",
-                  },
-                  card_mod: {
-                    style:
-                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
-                  },
-                },
-                {
-                  type: "custom:mushroom-chips-card",
-                  alignment: "center",
-                  chips: [
-                    {
-                      type: "template",
-                      content: "6 Months",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_monthly_months",
-                        },
-                        data: { option: "6" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "12 Months",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_monthly_months",
-                        },
-                        data: { option: "12" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "24 Months",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_monthly_months",
-                        },
-                        data: { option: "24" },
-                      },
-                    },
-                    {
-                      type: "template",
-                      content: "36 Months",
-                      card_mod: {
-                        style:
-                          "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                      },
-                      tap_action: {
-                        action: "call-service",
-                        service: "select.select_option",
-                        target: {
-                          entity_id: "select.sbf_chart_monthly_months",
-                        },
-                        data: { option: "36" },
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "custom:config-template-card",
-                  entities: ["select.sbf_chart_monthly_months"],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span:
-                      "${states['select.sbf_chart_monthly_months'].state + 'month'}",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "Cost (€)" } },
-                      chart: {
-                        height: 280,
-                        zoom: { enabled: false },
-                        toolbar: { show: false },
-                      },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: {
-                        bar: {
-                          borderRadius: 4,
-                          columnWidth: "60%",
-                          dataLabels: { position: "top" },
-                          colors: {
-                            ranges: [
-                              { from: -100000, to: 15.0, color: "#10b981" },
-                              { from: 15.0, to: 45.0, color: "#f59e0b" },
-                              { from: 45.0, to: 100000, color: "#ef4444" },
-                            ],
-                          },
-                        },
-                      },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled:
-                          "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}",
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter:
-                          "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                      },
-                      grid: {
-                        borderColor: "rgba(128, 128, 128, 0.2)",
-                        strokeDashArray: 2,
-                      },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                        name: "Template Device",
-                        type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "change", period: "month" },
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "custom:config-template-card",
-                  entities: ["select.sbf_chart_monthly_months"],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span:
-                      "${states['select.sbf_chart_monthly_months'].state + 'month'}",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device (Energy)" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "Energy (kWh)" } },
-                      chart: {
-                        height: 280,
-                        zoom: { enabled: false },
-                        toolbar: { show: false },
-                      },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: {
-                        bar: {
-                          borderRadius: 4,
-                          columnWidth: "60%",
-                          dataLabels: { position: "top" },
-                          colors: {
-                            ranges: [
-                              { from: -100000, to: 60.0, color: "#10b981" },
-                              { from: 60.0, to: 150.0, color: "#f59e0b" },
-                              { from: 150.0, to: 100000, color: "#ef4444" },
-                            ],
-                          },
-                        },
-                      },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled:
-                          "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}",
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter:
-                          "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                      },
-                      grid: {
-                        borderColor: "rgba(128, 128, 128, 0.2)",
-                        strokeDashArray: 2,
-                      },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
-                        name: "Template Device (Energy)",
-                        unit: " kWh", type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "change", period: "month" },
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "conditional",
-                  conditions: [
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_monthly", state_not: "unavailable" },
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_monthly", state_not: "unknown" }
-                  ],
-                  card: {
-                    type: "custom:config-template-card",
-                    entities: ["select.sbf_chart_monthly_months"],
-                    card: {
-                      type: "custom:apexcharts-card",
-                      graph_span: "${states['select.sbf_chart_monthly_months'].state + 'month'}",
-                      span: { end: "month" },
-                      header: { show: false, title: "Template Device (EUR/kWh)" },
-                      apex_config: {
-                        yaxis: { show: true, title: { text: "EUR/kWh" }, labels: { formatter: "EVAL:function(val) { return parseFloat(val).toFixed(3); }" } },
-                        chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
-                        xaxis: { type: "datetime", tooltip: { enabled: false } },
-                        tooltip: { enabled: true },
-                        plotOptions: {
-                          bar: {
-                            borderRadius: 4,
-                            columnWidth: "60%",
-                            dataLabels: { position: "top" },
-                            colors: {
-                              ranges: [
-                                { from: -100000, to: 0.15, color: "#10b981" },
-                                { from: 0.15, to: 0.30, color: "#f59e0b" },
-                                { from: 0.30, to: 100000, color: "#ef4444" },
-                              ],
-                            },
-                          },
-                        },
-                        fill: { type: "solid", opacity: 0.5 },
-                        stroke: { show: true, width: 1.5 },
-                        dataLabels: {
-                          enabled: "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 12}",
-                          offsetY: -15,
-                          style: { colors: ["var(--primary-text-color)"] },
-                          background: { enabled: false },
-                          formatter: "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n",
-                        },
-                        grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
-                      },
-                      series: [
-                        {
-                          entity: "sensor.sbf2_dev_template_device_avg_rate_monthly",
-                          name: "Template Device (EUR/kWh)",
-                          color: "#f97316",
-                          type: "column",
-                          show: { datalabels: true },
-                          statistics: { type: "mean", period: "month" },
-                        },
-                      ],
-                    },
-                  },
-                },
-              ],
-            },
-          },
-          {
-            type: "conditional",
-            conditions: [
-              { entity: "select.sbf_financial_view_period", state: "Yearly" },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "custom:mushroom-template-card",
-                  entity: "sensor.sbf2_dev_template_device_cost_rate_yearly",
-                  primary: "Template Device",
-                  icon_type: "none",
-                  tap_action: {
-                    action: "more-info",
-                    entity: "sensor.sbf2_dev_template_device_cost_rate_yearly",
-                  },
-                  card_mod: {
-                    style:
-                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
-                  },
-                },
-                {
-                  type: "custom:apexcharts-card",
-                  graph_span: "10y",
-                  span: { end: "day" },
-                  header: { show: false, title: "Template Device (Last 10 Years)" },
-                  apex_config: {
-                    yaxis: { show: true, title: { text: "Cost (€)" } },
-                    chart: {
-                      height: 280,
-                      zoom: { enabled: false },
-                      toolbar: { show: false },
-                    },
-                    xaxis: { type: "datetime", tooltip: { enabled: false } },
-                    tooltip: { enabled: true },
-                    plotOptions: {
-                      bar: {
-                        borderRadius: 4,
-                        columnWidth: "60%",
-                        dataLabels: { position: "top" },
-                        colors: {
-                          ranges: [
-                            { from: -100000, to: 182.5, color: "#10b981" },
-                            { from: 182.5, to: 547.5, color: "#f59e0b" },
-                            { from: 547.5, to: 100000, color: "#ef4444" },
-                          ],
-                        },
-                      },
-                    },
-                    fill: { type: "solid", opacity: 0.5 },
-                    stroke: { show: true, width: 1.5 },
-                    dataLabels: {
-                      enabled: true,
-                      offsetY: -15,
-                      style: { colors: ["var(--primary-text-color)"] },
-                      background: { enabled: false },
-                      formatter:
-                        "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                    },
-                    grid: {
-                      borderColor: "rgba(128, 128, 128, 0.2)",
-                      strokeDashArray: 2,
-                    },
-                  },
-                  series: [
-                    {
-                      entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                      name: "Template Device",
-                      type: "column",
-                      show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" }
-                    },
-                  ],
-                },
-                {
-                  type: "custom:apexcharts-card",
-                  graph_span: "10y",
-                  span: { end: "day" },
-                  header: { show: false, title: "Template Device (Energy)" },
-                  apex_config: {
-                    yaxis: { show: true, title: { text: "Energy (kWh)" } },
-                    chart: {
-                      height: 280,
-                      zoom: { enabled: false },
-                      toolbar: { show: false },
-                    },
-                    xaxis: { type: "datetime", tooltip: { enabled: false } },
-                    tooltip: { enabled: true },
-                    plotOptions: {
-                      bar: {
-                        borderRadius: 4,
-                        columnWidth: "60%",
-                        dataLabels: { position: "top" },
-                        colors: {
-                          ranges: [
-                            { from: -100000, to: 730.0, color: "#10b981" },
-                            { from: 730.0, to: 1825.0, color: "#f59e0b" },
-                            { from: 1825.0, to: 100000, color: "#ef4444" },
-                          ],
-                        },
-                      },
-                    },
-                    fill: { type: "solid", opacity: 0.5 },
-                    stroke: { show: true, width: 1.5 },
-                    dataLabels: {
-                      enabled: true,
-                      offsetY: -15,
-                      style: { colors: ["var(--primary-text-color)"] },
-                      background: { enabled: false },
-                      formatter:
-                        "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                    },
-                    grid: {
-                      borderColor: "rgba(128, 128, 128, 0.2)",
-                      strokeDashArray: 2,
-                    },
-                  },
-                  series: [
-                    {
-                      entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
-                      name: "Template Device (Energy)",
-                      unit: " kWh", type: "column",
-                      show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" }
-                    },
-                  ],
-                },
-                {
-                  type: "conditional",
-                  conditions: [
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_yearly", state_not: "unavailable" },
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_yearly", state_not: "unknown" }
-                  ],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span: "10y",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device (EUR/kWh)" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "EUR/kWh" }, labels: { formatter: "EVAL:function(val) { return parseFloat(val).toFixed(3); }" } },
-                      chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: { bar: { borderRadius: 4, columnWidth: "60%", dataLabels: { position: "top" } } },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled: true,
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter: "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n",
-                      },
-                      grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_avg_rate_yearly",
-                        name: "Template Device (EUR/kWh)",
-                        color: "#f97316",
-                        type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "mean", period: "month" },
-                        group_by: { func: "avg", duration: "1y" }
-                      },
-                    ],
-                  }
-                }
-              ]
-            }
-          },
-          {
-            type: "conditional",
-            conditions: [
-              {
-                entity: "select.sbf_financial_view_period",
-                state: "All-Time",
-              },
-            ],
-            card: {
-              type: "vertical-stack",
-              cards: [
-                {
-                  type: "custom:mushroom-template-card",
-                  entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                  primary: "Template Device",
-                  icon_type: "none",
-                  tap_action: {
-                    action: "more-info",
-                    entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                  },
-                  card_mod: {
-                    style:
-                      "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
-                  },
-                },
-                {
-                  type: "custom:apexcharts-card",
-                  graph_span: "10y",
-                  span: { end: "day" },
-                  header: { show: false, title: "Template Device (All-Time)" },
-                  apex_config: {
-                    yaxis: { show: true, title: { text: "Cost (€)" } },
-                    chart: {
-                      height: 280,
-                      zoom: { enabled: false },
-                      toolbar: { show: false },
-                    },
-                    xaxis: { type: "datetime", tooltip: { enabled: false } },
-                    tooltip: { enabled: true },
-                    plotOptions: {
-                      bar: {
-                        borderRadius: 4,
-                        columnWidth: "60%",
-                        dataLabels: { position: "top" },
-                        colors: {
-                          ranges: [
-                            { from: -100000, to: 500.0, color: "#10b981" },
-                            { from: 500.0, to: 1500.0, color: "#f59e0b" },
-                            { from: 1500.0, to: 100000, color: "#ef4444" },
-                          ],
-                        },
-                      },
-                    },
-                    fill: { type: "solid", opacity: 0.5 },
-                    stroke: { show: true, width: 1.5 },
-                    dataLabels: {
-                      enabled: true,
-                      offsetY: -15,
-                      style: { colors: ["var(--primary-text-color)"] },
-                      background: { enabled: false },
-                      formatter:
-                        "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                    },
-                    grid: {
-                      borderColor: "rgba(128, 128, 128, 0.2)",
-                      strokeDashArray: 2,
-                    },
-                  },
-                  series: [
-                    {
-                      entity: "sensor.sbf2_dev_template_device_cost_rate_cumulative",
-                      name: "Template Device",
-                      type: "column",
-                      show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" }
-                    },
-                  ],
-                },
-                {
-                  type: "custom:apexcharts-card",
-                  graph_span: "10y",
-                  span: { end: "day" },
-                  header: { show: false, title: "Template Device (Energy)" },
-                  apex_config: {
-                    yaxis: { show: true, title: { text: "Energy (kWh)" } },
-                    chart: {
-                      height: 280,
-                      zoom: { enabled: false },
-                      toolbar: { show: false },
-                    },
-                    xaxis: { type: "datetime", tooltip: { enabled: false } },
-                    tooltip: { enabled: true },
-                    plotOptions: {
-                      bar: {
-                        borderRadius: 4,
-                        columnWidth: "60%",
-                        dataLabels: { position: "top" },
-                        colors: {
-                          ranges: [
-                            { from: -100000, to: 730.0, color: "#10b981" },
-                            { from: 730.0, to: 1825.0, color: "#f59e0b" },
-                            { from: 1825.0, to: 100000, color: "#ef4444" },
-                          ],
-                        },
-                      },
-                    },
-                    fill: { type: "solid", opacity: 0.5 },
-                    stroke: { show: true, width: 1.5 },
-                    dataLabels: {
-                      enabled: true,
-                      offsetY: -15,
-                      style: { colors: ["var(--primary-text-color)"] },
-                      background: { enabled: false },
-                      formatter:
-                        "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n",
-                    },
-                    grid: {
-                      borderColor: "rgba(128, 128, 128, 0.2)",
-                      strokeDashArray: 2,
-                    },
-                  },
-                  series: [
-                    {
-                      entity: "sensor.sbf2_dev_template_device_energy_rate_cumulative",
-                      name: "Template Device (Energy)",
-                      unit: " kWh", type: "column",
-                      show: { datalabels: true },
-                      statistics: { type: "change", period: "month" },
-                      group_by: { func: "sum", duration: "1y" }
-                    },
-                  ],
-                },
-                {
-                  type: "conditional",
-                  conditions: [
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_cumulative", state_not: "unavailable" },
-                    { entity: "sensor.sbf2_dev_template_device_avg_rate_cumulative", state_not: "unknown" }
-                  ],
-                  card: {
-                    type: "custom:apexcharts-card",
-                    graph_span: "10y",
-                    span: { end: "day" },
-                    header: { show: false, title: "Template Device (EUR/kWh)" },
-                    apex_config: {
-                      yaxis: { show: true, title: { text: "EUR/kWh" }, labels: { formatter: "EVAL:function(val) { return parseFloat(val).toFixed(3); }" } },
-                      chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
-                      xaxis: { type: "datetime", tooltip: { enabled: false } },
-                      tooltip: { enabled: true },
-                      plotOptions: { bar: { borderRadius: 4, columnWidth: "60%", dataLabels: { position: "top" } } },
-                      fill: { type: "solid", opacity: 0.5 },
-                      stroke: { show: true, width: 1.5 },
-                      dataLabels: {
-                        enabled: true,
-                        offsetY: -15,
-                        style: { colors: ["var(--primary-text-color)"] },
-                        background: { enabled: false },
-                        formatter: "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n",
-                      },
-                      grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
-                    },
-                    series: [
-                      {
-                        entity: "sensor.sbf2_dev_template_device_avg_rate_cumulative",
-                        name: "Template Device (EUR/kWh)",
-                        color: "#f97316",
-                        type: "column",
-                        show: { datalabels: true },
-                        statistics: { type: "mean", period: "month" },
-                        group_by: { func: "avg", duration: "1y" }
-                      },
-                    ],
-                  }
-                }
-              ]
-            }
-          },
-        ],
-      },
-    ],
-  },
+  };
+};
 
-  { "title": "Total System Earnings History", "path": "financials-total-system-earnings", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_daily", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_weekly", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_system_earnings_rate_monthly", "primary": "Total System Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_system_earnings_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings (Last 10 Years)" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Total System Earnings (All-Time)" }, "apex_config": { "chart": { "stacked": true, "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107", "#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val, opts) {\n  let s0 = opts.w.globals.series[0][opts.dataPointIndex];\n  let s1 = opts.w.globals.series[1][opts.dataPointIndex];\n  let valid0 = s0 !== null && s0 !== undefined;\n  let valid1 = s1 !== null && s1 !== undefined;\n  let val0 = valid0 ? parseFloat(s0) : 0;\n  let val1 = valid1 ? parseFloat(s1) : 0;\n  let tot = val0 + val1;\n  \n  let targetSeries = 0;\n  if (valid1 && val1 >= 0) {\n      targetSeries = 1;\n  } else if (valid1 && val1 < 0) {\n      targetSeries = 0;\n  }\n  if (!valid0 && valid1) {\n      targetSeries = 1;\n  }\n  \n  if (opts.seriesIndex === targetSeries) {\n      return '\u20ac' + tot.toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }, { "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Solar-Only Earnings History", "path": "financials-solar-only-earnings", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_daily", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_weekly", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_solar_only_earnings_rate_monthly", "primary": "Solar-Only Earnings", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_solar_only_earnings_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Solar-Only Earnings (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#ffc107"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_solar_only_earnings_rate_cumulative", "name": "Solar-Only Earnings", "type": "column", "color": "#ffc107", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Battery Added Value History", "path": "financials-battery-added-value", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_daily", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_weekly", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_battery_added_value_rate_monthly", "primary": "Battery Added Value", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_battery_added_value_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Battery Added Value (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5, "colors": ["#9c27b0"] }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_battery_added_value_rate_cumulative", "name": "Battery Added Value", "type": "column", "color": "#9c27b0", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Effective Cost History", "path": "financials-effective-cost", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_daily", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 0.5, "color": "#10b981" }, { "from": 0.5, "to": 1.5, "color": "#f59e0b" }, { "from": 1.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_weekly", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 3.5, "color": "#10b981" }, { "from": 3.5, "to": 10.5, "color": "#f59e0b" }, { "from": 10.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_total_system_cost_rate_monthly", "primary": "Effective Cost", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_total_system_cost_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 15.0, "color": "#10b981" }, { "from": 15.0, "to": 45.0, "color": "#f59e0b" }, { "from": 45.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 182.5, "color": "#10b981" }, { "from": 182.5, "to": 547.5, "color": "#f59e0b" }, { "from": 547.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Effective Cost (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 500.0, "color": "#10b981" }, { "from": 500.0, "to": 1500.0, "color": "#f59e0b" }, { "from": 1500.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_total_system_cost_rate_cumulative", "name": "Effective Cost", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }, { "title": "Net Bill History", "path": "financials-net-bill", "subview": true, "type": "panel", "cards": [{ "type": "vertical-stack", "cards": [{ "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Daily" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_daily", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_daily" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "7 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '7') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '7') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '7') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '7') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "7" } } }, { "type": "template", "content": "14 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '14') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '14') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '14') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '14') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "14" } } }, { "type": "template", "content": "30 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '30') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '30') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '30') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '30') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "30" } } }, { "type": "template", "content": "60 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '60') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '60') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '60') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '60') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "60" } } }, { "type": "template", "content": "90 Days", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_daily_days', '90') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_daily_days', '90') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_daily_days', '90') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_daily_days', '90') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_daily_days" }, "data": { "option": "90" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_daily_days"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_daily_days'].state + 'd'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 0.5, "color": "#10b981" }, { "from": 0.5, "to": 1.5, "color": "#f59e0b" }, { "from": 1.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_daily_days'].state) <= 7 : parseInt(states['select.sbf_chart_daily_days'].state) <= 30}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "day" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Weekly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_weekly", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_weekly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "4 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '4') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '4') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "4" } } }, { "type": "template", "content": "8 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '8') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '8') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "8" } } }, { "type": "template", "content": "12 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "12" } } }, { "type": "template", "content": "26 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '26') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '26') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "26" } } }, { "type": "template", "content": "52 Weeks", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_weekly_weeks', '52') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_weekly_weeks', '52') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_weekly_weeks" }, "data": { "option": "52" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_weekly_weeks"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_weekly_weeks'].state + 'w'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 3.5, "color": "#10b981" }, { "from": 3.5, "to": 10.5, "color": "#f59e0b" }, { "from": 10.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 8 : parseInt(states['select.sbf_chart_weekly_weeks'].state) <= 26}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "week" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Monthly" }], "card": { "type": "vertical-stack", "cards": [{ "type": "custom:mushroom-template-card", "entity": "sensor.sbf2_net_grid_cost_rate_monthly", "primary": "Net Bill", "icon_type": "none", "tap_action": { "action": "more-info", "entity": "sensor.sbf2_net_grid_cost_rate_monthly" }, "card_mod": { "style": "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n" } }, { "type": "custom:mushroom-chips-card", "alignment": "center", "chips": [{ "type": "template", "content": "6 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '6') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '6') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '6') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "6" } } }, { "type": "template", "content": "12 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '12') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '12') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '12') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "12" } } }, { "type": "template", "content": "24 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '24') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '24') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '24') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "24" } } }, { "type": "template", "content": "36 Months", "card_mod": { "style": "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_chart_monthly_months', '36') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_chart_monthly_months', '36') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_chart_monthly_months', '36') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n" }, "tap_action": { "action": "call-service", "service": "select.select_option", "target": { "entity_id": "select.sbf_chart_monthly_months" }, "data": { "option": "36" } } }] }, { "type": "custom:config-template-card", "entities": ["select.sbf_chart_monthly_months"], "card": { "type": "custom:apexcharts-card", "graph_span": "${states['select.sbf_chart_monthly_months'].state + 'month'}", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 15.0, "color": "#10b981" }, { "from": 15.0, "to": 45.0, "color": "#f59e0b" }, { "from": 45.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": "${window.innerWidth < 600 ? parseInt(states['select.sbf_chart_monthly_months'].state) <= 6 : parseInt(states['select.sbf_chart_monthly_months'].state) <= 24}", "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" } }] } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "Yearly" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill (Last 10 Years)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 182.5, "color": "#10b981" }, { "from": 182.5, "to": 547.5, "color": "#f59e0b" }, { "from": 547.5, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }, { "type": "conditional", "conditions": [{ "entity": "select.sbf_financial_view_period", "state": "All-Time" }], "card": { "type": "custom:apexcharts-card", "graph_span": "10y", "span": { "end": "day" }, "header": { "show": false, "title": "Net Bill (All-Time)" }, "apex_config": { "chart": { "height": 280, "zoom": { "enabled": false }, "toolbar": { "show": false } }, "xaxis": { "type": "datetime", "tooltip": { "enabled": false } }, "tooltip": { "enabled": true }, "plotOptions": { "bar": { "borderRadius": 4, "columnWidth": "60%", "dataLabels": { "position": "top" }, "colors": { "ranges": [{ "from": -100000, "to": 500.0, "color": "#10b981" }, { "from": 500.0, "to": 1500.0, "color": "#f59e0b" }, { "from": 1500.0, "to": 100000, "color": "#ef4444" }] } } }, "fill": { "type": "solid", "opacity": 0.5 }, "stroke": { "show": true, "width": 1.5 }, "dataLabels": { "enabled": true, "offsetY": -15, "style": { "colors": ["var(--primary-text-color)"] }, "background": { "enabled": false }, "formatter": "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '\u20ac' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n" }, "grid": { "borderColor": "rgba(128, 128, 128, 0.2)", "strokeDashArray": 2 } }, "series": [{ "entity": "sensor.sbf2_net_grid_cost_rate_cumulative", "name": "Net Bill", "type": "column", "show": { "datalabels": true }, "statistics": { "type": "change", "period": "month" }, "group_by": { "func": "sum", "duration": "1y" } }] } }] }] }
-];
-
+// ============================================================================
+// 8. UTILITIES, STRATEGY CLASS & REGISTRATION
+// ============================================================================
 const getPrefix = (states) => {
   if (!states) return "sensor.sbf2_";
-  const sample = Object.keys(states).find((id) =>
-    id.endsWith("_system_earnings_rate_daily"),
-  );
-  if (sample) {
-    return sample.split("_system_earnings_rate_daily")[0] + "_";
-  }
-  return "sensor.sbf2_";
+  const sample = Object.keys(states).find((id) => id.endsWith("_system_earnings_rate_daily"));
+  return sample ? sample.split("_system_earnings_rate_daily")[0] + "_" : "sensor.sbf2_";
 };
+
+const slugify = (str, separator = "-") =>
+  (str || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, separator)
+    .replace(new RegExp(`(^\\${separator}+|\\${separator}+$)`, "g"), "");
+
+const ICON_PATTERNS = [
+  [["kitchen", "keuken", "dish", "vaat"], "mdi:countertop"],
+  [["living", "woon", "couch", "bank"], "mdi:sofa"],
+  [["bed", "slaap"], "mdi:bed"],
+  [["wash", "was"], "mdi:washing-machine"],
+  [["tv", "tele"], "mdi:television"],
+  [["charg", "laad", "ev", "myenergi"], "mdi:ev-station"],
+  [["airco", "clima", "heat", "warm", "cool"], "mdi:air-conditioner"],
+  [["light", "lamp", "licht"], "mdi:lightbulb"],
+  [["office", "kantoor", "desk"], "mdi:desk"],
+  [["attic", "zolder", "roof"], "mdi:home-roof"],
+  [["untracked"], "mdi:help-network-outline"],
+];
+
+const getSmartIcon = (name, entityId, states = {}) => {
+  if (states[entityId]?.attributes?.icon) return states[entityId].attributes.icon;
+  const n = (name || "").toLowerCase();
+  const match = ICON_PATTERNS.find(([keys]) => keys.some((k) => n.includes(k)));
+  return match ? match[1] : "mdi:power-plug";
+};
+
+/**
+ * Resolves a device's display label and backend sensor slug target.
+ * @param {string} devId - Original entity ID
+ * @param {string[]} tracked - Tracked devices list from total_power_consumption
+ * @param {Object} states - Full hass.states dictionary
+ * @param {Object} names - Custom name mappings
+ * @param {string} prefix - Entity ID prefix
+ * @param {string} untrackedSensor - Entity ID for untracked power
+ * @returns {{ label: string, devTarget: string }}
+ */
+const getDevInfo = (devId, tracked, states, names, prefix, untrackedSensor) => {
+  let label = names[devId] || states[devId]?.attributes?.friendly_name;
+  let devTarget = null;
+
+  const costEntity = tracked.find((e) => states[e]?.attributes?.source_entity_id === devId);
+  if (costEntity) {
+    const prefixFull = prefix.startsWith("sensor.") ? prefix : "sensor." + prefix;
+    if (costEntity.startsWith(prefixFull) && costEntity.endsWith("_cost_rate_daily")) {
+      devTarget = costEntity.substring(prefixFull.length, costEntity.length - 16);
+    }
+    if (!label && states[costEntity]?.attributes?.friendly_name) {
+      let fn = states[costEntity].attributes.friendly_name;
+      [" Cost Rate", " Cost Cumulative", " Cost Daily"].forEach((s) => {
+        if (fn.endsWith(s)) fn = fn.substring(0, fn.length - s.length);
+      });
+      label = fn;
+    }
+  }
+
+  label = label || devId.replace("sensor.", "").replace(/_power/g, "").replace(/_/g, " ");
+  devTarget = devTarget || (devId === untrackedSensor ? "untracked" : "dev_" + slugify(label, "_"));
+  return { label, devTarget };
+};
+
+const buildPowerSubview = (entityId, label, slug) =>
+  makePanelSubview(`${label} Power`, `power-${slug}`, [
+    subviewHeaderCard(entityId, `${label} Power`, true),
+    createChartChips("select.sbf_power_chart_days", POWER_CHIPS),
+    {
+      type: "custom:config-template-card",
+      entities: ["select.sbf_power_chart_days"],
+      card: {
+        type: "custom:apexcharts-card",
+        graph_span: `\${(states['select.sbf_power_chart_days'] && states['select.sbf_power_chart_days'].state && !isNaN(parseInt(states['select.sbf_power_chart_days'].state)) ? states['select.sbf_power_chart_days'].state : '7') + 'd'}`,
+        header: { show: false },
+        apex_config: {
+          chart: { height: 360, toolbar: { show: false }, zoom: { enabled: false } },
+          fill: { type: "solid", opacity: 0.15 },
+          stroke: { show: true, width: 2, curve: "straight" },
+          grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
+          tooltip: { enabled: true, x: { format: "dd MMM, HH:mm" } },
+          xaxis: { type: "datetime", tooltip: { enabled: false } },
+        },
+        series: [
+          {
+            entity: entityId,
+            name: label,
+            color: "#008FFB",
+            type: "area",
+            unit: "W",
+            show: { datalabels: false },
+            statistics: {
+              type: "mean",
+              period:
+                "${(() => { let d = (states['select.sbf_power_chart_days'] && !isNaN(parseInt(states['select.sbf_power_chart_days'].state)) ? parseInt(states['select.sbf_power_chart_days'].state) : 7); return d <= 3 ? '5minute' : 'hour'; })()}",
+            },
+          },
+        ],
+      },
+    },
+  ]);
 
 class SbfDashboardStrategy extends HTMLElement {
   static async generateDashboard(info) {
     const states = info.hass ? info.hass.states : {};
     const prefix = getPrefix(states);
-
-    // Resolve current dashboard root base URL (e.g. "/lovelace-sbf" or "/solar-financials")
     const parts = window.location.pathname.split("/");
     const dashUrl = parts.length > 1 && parts[1] !== "" ? "/" + parts[1] : "";
 
-    let jsonStr = JSON.stringify(GOLDEN_VIEWS);
-
-    // Replace dummy dashboard navigation paths with dynamic current root URL
-    jsonStr = jsonStr.replaceAll("/lovelace-battery/", `${dashUrl}/`);
-    jsonStr = jsonStr.replaceAll(
-      'navigation_path":"financials-',
-      `navigation_path":"${dashUrl}/financials-`,
-    );
-    jsonStr = jsonStr.replaceAll(
-      'navigation_path":"power-',
-      `navigation_path":"${dashUrl}/power-`,
-    );
-
-    // Replace default sensor prefix if user customized it
-    if (prefix !== "sensor.sbf2_") {
-      jsonStr = jsonStr.replaceAll("sensor.sbf2_", prefix);
-    }
-
-    const finalViews = JSON.parse(jsonStr);
-
-    // Universal Power Breakdown & Subview Auto-Generator for any user
     const totPwr = states[prefix + "total_power_consumption"];
-    if (totPwr && totPwr.attributes && totPwr.attributes.tracked_devices) {
-      const tracked = totPwr.attributes.tracked_devices;
-      const subDevs = totPwr.attributes.sub_devices || [];
-      const names = {
-        ...(totPwr.attributes.device_names || {}),
-        ...(info.config && info.config.device_names
-          ? info.config.device_names
-          : {}),
-      };
-      const untrackedSensor = prefix + "untracked_power";
+    const tracked = totPwr?.attributes?.tracked_devices || [];
+    const subDevs = totPwr?.attributes?.sub_devices || [];
+    const names = {
+      ...(totPwr?.attributes?.device_names || {}),
+      ...(info.config?.device_names || {}),
+    };
+    const untrackedSensor = prefix + "untracked_power";
+    const mainDevs = tracked.filter((dev) => !subDevs.includes(dev));
+    const allDevs = [...mainDevs, untrackedSensor, ...subDevs];
 
-      const getSmartIcon = (name, entityId) => {
-        if (
-          states[entityId] &&
-          states[entityId].attributes &&
-          states[entityId].attributes.icon
-        )
-          return states[entityId].attributes.icon;
-        const n = (name || "").toLowerCase();
-        if (
-          n.includes("kitchen") ||
-          n.includes("keuken") ||
-          n.includes("dish") ||
-          n.includes("vaat")
-        )
-          return "mdi:countertop";
-        if (
-          n.includes("living") ||
-          n.includes("woon") ||
-          n.includes("couch") ||
-          n.includes("bank")
-        )
-          return "mdi:sofa";
-        if (n.includes("bed") || n.includes("slaap")) return "mdi:bed";
-        if (n.includes("wash") || n.includes("was"))
-          return "mdi:washing-machine";
-        if (n.includes("tv") || n.includes("tele")) return "mdi:television";
-        if (
-          n.includes("charg") ||
-          n.includes("laad") ||
-          n.includes("ev") ||
-          n.includes("myenergi")
-        )
-          return "mdi:ev-station";
-        if (
-          n.includes("airco") ||
-          n.includes("clima") ||
-          n.includes("heat") ||
-          n.includes("warm") ||
-          n.includes("cool")
-        )
-          return "mdi:air-conditioner";
-        if (n.includes("light") || n.includes("lamp") || n.includes("licht"))
-          return "mdi:lightbulb";
-        if (n.includes("office") || n.includes("kantoor") || n.includes("desk"))
-          return "mdi:desk";
-        if (n.includes("attic") || n.includes("zolder") || n.includes("roof"))
-          return "mdi:home-roof";
-        if (n.includes("untracked")) return "mdi:help-network-outline";
-        return "mdi:power-plug";
-      };
+    const powerView = buildPowerView({ prefix, totPwr, states, mainDevs, subDevs, names, untrackedSensor, dashUrl });
+    const finView = buildFinancialsView({ mainDevs, subDevs, tracked, states, names, prefix, untrackedSensor, dashUrl });
 
-      const slugify = (str) => {
-        return (str || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "");
-      };
+    const powerSubviews = allDevs.map((dev) => {
+      const label = dev === untrackedSensor ? "Untracked" : names[dev] || dev.replace("sensor.", "").replace("_power", "").replace("_", " ");
+      return buildPowerSubview(dev, label, slugify(label));
+    });
 
-      const makeBreakdownCard = (entityId, label, slug) => ({
-        type: "custom:mushroom-template-card",
-        entity: entityId,
-        primary: label,
-        secondary: `{{ states('${entityId}') | float(0) | round(0) }} W`,
-        icon: getSmartIcon(label, entityId),
-        icon_color: `{% set p = states('${entityId}') | float(0) %} {% if p < 50 %} green {% elif p < 1000 %} orange {% else %} red {% endif %}`,
-        layout: "horizontal",
-        fill_container: true,
-        tap_action: {
-          action: "navigate",
-          navigation_path: `${dashUrl}/power-${slug}`,
-        },
-        card_mod: {
-          style:
-            "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: none !important;\n}\n",
-        },
-      });
+    const deviceSubviews = allDevs.map((dev) => {
+      const meta = getDevInfo(dev, tracked, states, names, prefix, untrackedSensor);
+      const label = dev === untrackedSensor ? "Untracked" : meta.label;
+      const devTarget = dev === untrackedSensor ? "untracked" : meta.devTarget;
+      return buildDeviceSubview(label, devTarget);
+    });
 
-      const makeChip = (option, label) => ({
-        type: "template",
-        content: label,
-        tap_action: {
-          action: "call-service",
-          service: "select.select_option",
-          target: { entity_id: "select.sbf_power_chart_days" },
-          data: { option: option },
-        },
-        card_mod: {
-          style: `ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_power_chart_days', '${option}') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_power_chart_days', '${option}') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_power_chart_days', '${option}') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_power_chart_days', '${option}') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n`,
-        },
-      });
+    const systemSubviews = buildSystemSubviews();
 
-      const makeSubview = (entityId, label, slug) => ({
-        type: "panel",
-        path: `power-${slug}`,
-        title: `${label} Power`,
-        subview: true,
-        cards: [
-          {
-            type: "vertical-stack",
-            cards: [
-              {
-                type: "custom:mushroom-template-card",
-                entity: entityId,
-                primary: `${label} Power`,
-                icon_type: "none",
-                tap_action: { action: "more-info" },
-                card_mod: {
-                  style:
-                    "ha-card {\n  box-shadow: none !important;\n  border: none !important;\n  background: transparent !important;\n  padding: 16px 16px 4px 16px !important;\n  cursor: pointer !important;\n}\nha-card .primary {\n  font-size: 24px !important;\n  font-weight: 600 !important;\n  letter-spacing: -0.5px !important;\n}\n",
-                },
-              },
-              {
-                type: "custom:mushroom-chips-card",
-                alignment: "center",
-                chips: [
-                  makeChip("1", "1 Day"),
-                  makeChip("3", "3 Days"),
-                  makeChip("7", "7 Days"),
-                  makeChip("14", "14 Days"),
-                ],
-              },
-              {
-                type: "custom:config-template-card",
-                entities: ["select.sbf_power_chart_days"],
-                card: {
-                  type: "custom:apexcharts-card",
-                  graph_span:
-                    "${(states['select.sbf_power_chart_days'] && states['select.sbf_power_chart_days'].state && !isNaN(parseInt(states['select.sbf_power_chart_days'].state)) ? states['select.sbf_power_chart_days'].state : '7') + 'd'}",
-                  header: { show: false },
-                  apex_config: {
-                    chart: {
-                      height: 360,
-                      toolbar: { show: false },
-                      zoom: { enabled: false },
-                    },
-                    fill: { type: "solid", opacity: 0.15 },
-                    stroke: { show: true, width: 2, curve: "straight" },
-                    grid: {
-                      borderColor: "rgba(128, 128, 128, 0.2)",
-                      strokeDashArray: 2,
-                    },
-                    tooltip: { enabled: true, x: { format: "dd MMM, HH:mm" } },
-                    xaxis: { type: "datetime", tooltip: { enabled: false } },
-                  },
-                  series: [
-                    {
-                      entity: entityId,
-                      name: label,
-                      color: "#008FFB",
-                      type: "area",
-                      unit: "W",
-                      show: { datalabels: false },
-                      statistics: {
-                        type: "mean",
-                        period:
-                          "${(() => { let d = (states['select.sbf_power_chart_days'] && !isNaN(parseInt(states['select.sbf_power_chart_days'].state)) ? parseInt(states['select.sbf_power_chart_days'].state) : 7); return d <= 3 ? '5minute' : 'hour'; })()}",
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          },
-        ],
-      });
+    let allViews = [powerView, finView, ...powerSubviews, ...deviceSubviews, ...systemSubviews];
 
-      // 1. Rebuild cards for Tracked Devices grid (excluding subset devices)
-      const mainDevs = tracked.filter((dev) => !subDevs.includes(dev));
-      const trackedCards = mainDevs.map((dev) => {
-        const label =
-          names[dev] ||
-          dev.replace("sensor.", "").replace("_power", "").replace("_", " ");
-        return makeBreakdownCard(dev, label, slugify(label));
-      });
-      trackedCards.push(
-        makeBreakdownCard(untrackedSensor, "Untracked", "untracked"),
-      );
-
-      // 2. Rebuild cards for Subset Devices grid
-      const subsetCards = subDevs.map((dev) => {
-        const label =
-          names[dev] ||
-          dev.replace("sensor.", "").replace("_power", "").replace("_", " ");
-        return makeBreakdownCard(dev, label, slugify(label));
-      });
-
-      // Update the power breakdown view in finalViews
-      const pwrView = finalViews.find((v) => v.path === "power");
-      if (pwrView) {
-        const stacks = [];
-        const findStacks = (obj) => {
-          if (obj && typeof obj === "object") {
-            if (
-              obj.type === "custom:stack-in-card" &&
-              obj.cards &&
-              obj.cards[0] &&
-              obj.cards[0].type === "grid"
-            ) {
-              stacks.push(obj.cards[0]);
-            }
-            Object.values(obj).forEach(findStacks);
-          }
-        };
-        findStacks(pwrView);
-        if (stacks.length >= 1) stacks[0].cards = trackedCards;
-        if (stacks.length >= 2) stacks[1].cards = subsetCards;
-      }
-
-      // Dynamically populate cards for ANY user
-      const findAndPopulateCards = (obj) => {
-        if (obj && typeof obj === "object") {
-          if (obj.cards && Array.isArray(obj.cards)) {
-            obj.cards = obj.cards.filter((c) => {
-              if (c && c.entity === "sensor.dummy_battery_temp") {
-                const batPwr =
-                  totPwr && totPwr.attributes
-                    ? totPwr.attributes.battery_sensor || ""
-                    : "";
-                const t1 = batPwr.replace("_power", "_temperature");
-                const t2 = batPwr.replace(
-                  "_battery_power",
-                  "_battery_temperature",
-                );
-                if (states[t1]) {
-                  c.entity = t1;
-                  return true;
-                }
-                if (states[t2]) {
-                  c.entity = t2;
-                  return true;
-                }
-                return false;
-              }
-              return true;
-            });
-          }
-
-          if (obj.entity === "sensor.dummy_price") {
-            if (totPwr.attributes.price_sensor)
-              obj.entity = totPwr.attributes.price_sensor;
-          }
-
-          if (obj.type === "custom:power-flow-card-plus" && obj.entities) {
-            if (
-              totPwr.attributes.grid_sensor &&
-              obj.entities.grid &&
-              typeof obj.entities.grid === "object"
-            ) {
-              obj.entities.grid.entity = totPwr.attributes.grid_sensor;
-            }
-            if (
-              totPwr.attributes.solar_sensor &&
-              obj.entities.solar &&
-              typeof obj.entities.solar === "object"
-            ) {
-              obj.entities.solar.entity = totPwr.attributes.solar_sensor;
-            }
-            if (
-              totPwr.attributes.battery_sensor &&
-              obj.entities.battery &&
-              typeof obj.entities.battery === "object"
-            ) {
-              obj.entities.battery.entity = totPwr.attributes.battery_sensor;
-              const batPwr = totPwr.attributes.battery_sensor;
-              const g1 = batPwr.replace("_power", "");
-              const g2 = batPwr + "_soc";
-              const g3 = batPwr.replace("_power", "_soc");
-              if (
-                states[g1] &&
-                states[g1].attributes &&
-                states[g1].attributes.unit_of_measurement === "%"
-              ) {
-                obj.entities.battery.state_of_charge = g1;
-              } else if (states[g2]) {
-                obj.entities.battery.state_of_charge = g2;
-              } else if (states[g3]) {
-                obj.entities.battery.state_of_charge = g3;
-              } else {
-                delete obj.entities.battery.state_of_charge;
-              }
-            }
-            if (obj.entities.home && typeof obj.entities.home === "object") {
-              obj.entities.home.entity = prefix + "total_power_consumption";
-            }
-            const flowIndividuals = mainDevs.map((dev) => {
-              const label =
-                names[dev] ||
-                dev
-                  .replace("sensor.", "")
-                  .replace("_power", "")
-                  .replace("_", " ");
-              return {
-                entity: dev,
-                name: label,
-                icon: getSmartIcon(label, dev),
-                secondary_info: {},
-              };
-            });
-            flowIndividuals.push({
-              entity: untrackedSensor,
-              name: "Untracked",
-              icon: "mdi:help-network-outline",
-              secondary_info: {},
-            });
-            obj.entities.individual = flowIndividuals;
-          }
-          Object.values(obj).forEach(findAndPopulateCards);
-        }
-      };
-      finalViews.forEach(findAndPopulateCards);
-
-      // Filter out existing power subviews and append newly generated ones
-      let newViews = finalViews.filter(
-        (v) => !String(v.path || "").startsWith("power-"),
-      );
-
-      const allDevs = [...mainDevs, untrackedSensor, ...subDevs];
-      allDevs.forEach((dev) => {
-        const label =
-          dev === untrackedSensor
-            ? "Untracked"
-            : names[dev] ||
-            dev
-              .replace("sensor.", "")
-              .replace("_power", "")
-              .replace("_", " ");
-        newViews.push(makeSubview(dev, label, slugify(label)));
-      });
-
-      // --- DYNAMIC FINANCIALS INJECTION ---
-
-      // Find the generic Financials view and the Kitchen templates to use as a base
-      const finView = finalViews.find((v) => v.path === "financials");
-      const templateSubView = finalViews.find(
-        (v) => v.path === "financials-template_device",
-      );
-
-      const pySlugify = (str) => {
-        return (str || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "_")
-          .replace(/(^_|_$)/g, "");
-      };
-
-      const getDevInfo = (devId) => {
-        let label =
-          names[devId] ||
-          (states[devId] &&
-            states[devId].attributes &&
-            states[devId].attributes.friendly_name);
-        let devTarget = null;
-
-        const costEntity = tracked.find(
-          (e) =>
-            states[e] &&
-            states[e].attributes &&
-            states[e].attributes.source_entity_id === devId,
-        );
-
-        if (costEntity) {
-          const prefixFull = "sensor." + prefix;
-          if (
-            costEntity.startsWith(prefixFull) &&
-            costEntity.endsWith("_cost_rate_daily")
-          ) {
-            devTarget = costEntity.substring(
-              prefixFull.length,
-              costEntity.length - 16,
-            );
-          }
-
-          if (
-            !label &&
-            states[costEntity].attributes &&
-            states[costEntity].attributes.friendly_name
-          ) {
-            let fn = states[costEntity].attributes.friendly_name;
-            if (fn.endsWith(" Cost Rate")) fn = fn.substring(0, fn.length - 10);
-            else if (fn.endsWith(" Cost Cumulative"))
-              fn = fn.substring(0, fn.length - 16);
-            else if (fn.endsWith(" Cost Daily"))
-              fn = fn.substring(0, fn.length - 11);
-            label = fn;
-          }
-        }
-
-        if (!label) {
-          label = devId
-            .replace("sensor.", "")
-            .replace(/_power/g, "")
-            .replace(/_/g, " ");
-        }
-
-        if (!devTarget) {
-          devTarget =
-            devId === untrackedSensor ? "untracked" : "dev_" + pySlugify(label);
-        }
-
-        return { label, devTarget };
-      };
-
-      if (finView && templateSubView) {
-        const periods = [
-          { state: "Daily", suffix: "daily" },
-          { state: "Weekly", suffix: "weekly" },
-          { state: "Monthly", suffix: "monthly" },
-          { state: "Yearly", suffix: "yearly" },
-          { state: "All-Time", suffix: "cumulative" },
-        ];
-
-        let templateCardStr = "";
-        try {
-          let foundStr = "";
-          const findKitchenCard = (obj) => {
-            if (foundStr) return;
-            if (obj && typeof obj === "object") {
-              if (
-                obj.type === "custom:mushroom-template-card" &&
-                obj.primary === "Template Device"
-              ) {
-                foundStr = JSON.stringify(obj);
-              }
-              Object.values(obj).forEach(findKitchenCard);
-            }
-          };
-
-          finView.sections.forEach((section) => {
-            if (section.cards) {
-              const dailyCond = section.cards.find(
-                (c) =>
-                  c.type === "conditional" &&
-                  c.conditions &&
-                  c.conditions[0] &&
-                  c.conditions[0].state === "Daily",
-              );
-              if (dailyCond) {
-                findKitchenCard(dailyCond);
-              }
-            }
-          });
-
-          templateCardStr = foundStr;
-        } catch (e) {
-          console.error("Could not find Kitchen card template", e);
-        }
-
-        if (templateCardStr) {
-          finView.sections.forEach((section) => {
-            if (!section.cards) return;
-            section.cards.forEach((card) => {
-              if (
-                card.type === "conditional" &&
-                card.conditions &&
-                card.conditions.length > 0
-              ) {
-                const pState = card.conditions[0].state;
-                const periodInfo = periods.find((p) => p.state === pState);
-                if (!periodInfo) return;
-
-                let stacks = [];
-                const findStacks = (obj) => {
-                  if (obj && typeof obj === "object") {
-                    if (
-                      obj.type === "custom:stack-in-card" &&
-                      obj.cards &&
-                      obj.cards[0] &&
-                      obj.cards[0].type === "grid"
-                    ) {
-                      stacks.push(obj.cards[0]);
-                    }
-                    Object.values(obj).forEach(findStacks);
-                  }
-                };
-                findStacks(card.card);
-
-                if (stacks.length >= 2) {
-                  const makeFinCard = (devId, devName, devTarget) => {
-                    const isUntracked = devId === untrackedSensor;
-
-                    let newStr = templateCardStr;
-                    newStr = newStr.replace(/_daily/g, "_" + periodInfo.suffix);
-
-                    // Scale thresholds based on the period
-                    let multiplier = 1;
-                    if (periodInfo.suffix === "weekly") multiplier = 7;
-                    else if (periodInfo.suffix === "monthly") multiplier = 30;
-                    else if (periodInfo.suffix === "yearly" || periodInfo.suffix === "cumulative") multiplier = 365;
-
-                    if (multiplier !== 1) {
-                      newStr = newStr.replace(/c < 0\.5/g, "c < " + (0.5 * multiplier));
-                      newStr = newStr.replace(/c < 1\.5/g, "c < " + (1.5 * multiplier));
-                    }
-
-                    newStr = newStr.replace(
-                      /financials-template_device/g,
-                      "financials-" + slugify(devName),
-                    );
-                    newStr = newStr.replace(
-                      /power-template_device/g,
-                      "financials-" + slugify(devName),
-                    );
-                    newStr = newStr.replace(/dev_template_device/g, devTarget);
-                    newStr = newStr.replace(
-                      /"primary":"Template Device"/g,
-                      '"primary":"' + devName + '"',
-                    );
-                    newStr = newStr.replace(/"Template Device"/g, '"' + devName + '"');
-                    newStr = newStr.replace(
-                      /"icon":"mdi:countertop"/g,
-                      '"icon":"' + getSmartIcon(devName, devId) + '"',
-                    );
-
-                    return JSON.parse(newStr);
-                  };
-
-                  const finTrackedCards = mainDevs.map((dev) => {
-                    const info = getDevInfo(dev);
-                    return makeFinCard(dev, info.label, info.devTarget);
-                  });
-                  finTrackedCards.push(
-                    makeFinCard(untrackedSensor, "Untracked", "untracked"),
-                  );
-
-                  const finSubsetCards = subDevs.map((dev) => {
-                    const info = getDevInfo(dev);
-                    return makeFinCard(dev, info.label, info.devTarget);
-                  });
-
-                  stacks[0].cards = finTrackedCards;
-                  stacks[1].cards = finSubsetCards;
-                }
-              }
-            });
-          });
-        }
-
-        const isDeviceSubview = (v) => {
-          if (!v.path) return false;
-          if (!v.path.startsWith("financials-")) return false;
-          const sysViews = [
-            "financials-total-system-earnings",
-            "financials-solar-only-earnings",
-            "financials-battery-added-value",
-            "financials-effective-cost",
-            "financials-net-bill",
-          ];
-          if (sysViews.includes(v.path)) return false;
-          return true;
-        };
-        newViews = newViews.filter((v) => !isDeviceSubview(v));
-
-        const templateSubviewStr = JSON.stringify(templateSubView);
-
-        const allDevs = [...mainDevs, untrackedSensor, ...subDevs];
-        allDevs.forEach((dev) => {
-          const info = getDevInfo(dev);
-          const label = dev === untrackedSensor ? "Untracked" : info.label;
-          const devTarget =
-            dev === untrackedSensor ? "untracked" : info.devTarget;
-
-          let subStr = templateSubviewStr;
-          subStr = subStr.replace(/dev_template_device/g, devTarget);
-          subStr = subStr.replace(/"Template Device"/g, '"' + label + '"');
-          subStr = subStr.replace(
-            /"Template Device History"/g,
-            '"' + label + ' History"',
-          );
-          subStr = subStr.replace(/"Template Device Costs"/g, '"' + label + ' Costs"');
-          subStr = subStr.replace(
-            /financials-template_device/g,
-            "financials-" + slugify(label),
-          );
-          subStr = subStr.replace(
-            /"icon":"mdi:countertop"/g,
-            '"icon":"' + getSmartIcon(label, dev) + '"',
-          );
-
-          const parsedSub = JSON.parse(subStr);
-          // Inject the stacked pill chips period selector below the device label
-          if (
-            parsedSub.cards &&
-            parsedSub.cards[0] &&
-            parsedSub.cards[0].cards
-          ) {
-            parsedSub.cards[0].cards.forEach((condCard) => {
-              if (condCard.type === "conditional" && condCard.card) {
-                if (
-                  condCard.card.type === "custom:apexcharts-card" ||
-                  condCard.card.type === "custom:config-template-card"
-                ) {
-                  condCard.card = {
-                    type: "vertical-stack",
-                    cards: [condCard.card],
-                  };
-                }
-                if (condCard.card.cards) {
-                  let insertIndex = 0;
-                  const titleIndex = condCard.card.cards.findIndex(
-                    (c) => c.type === "custom:mushroom-template-card",
-                  );
-                  const pillsIndex = condCard.card.cards.findIndex(
-                    (c) => c.type === "custom:mushroom-chips-card",
-                  );
-                  if (pillsIndex !== -1) {
-                    insertIndex = pillsIndex;
-                  } else if (titleIndex !== -1) {
-                    insertIndex = titleIndex + 1;
-                  }
-                  condCard.card.cards.splice(insertIndex, 0, {
-                    type: "custom:mushroom-chips-card",
-                    alignment: "center",
-                    card_mod: {
-                      style:
-                        "ha-card {\n  background: rgba(var(--rgb-primary-text-color), 0.05);\n  border-radius: 24px;\n  padding: 4px;\n  margin: 0 auto;\n  width: fit-content;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  margin-bottom: 8px !important;\n}\n",
-                    },
-                    chips: [
-                      {
-                        type: "template",
-                        content: "Daily",
-                        card_mod: {
-                          style:
-                            "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Daily') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Daily') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Daily') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Daily') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                        },
-                        tap_action: {
-                          action: "call-service",
-                          service: "select.select_option",
-                          target: {
-                            entity_id: "select.sbf_financial_view_period",
-                          },
-                          data: { option: "Daily" },
-                        },
-                      },
-                      {
-                        type: "template",
-                        content: "Weekly",
-                        card_mod: {
-                          style:
-                            "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Weekly') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Weekly') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Weekly') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Weekly') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                        },
-                        tap_action: {
-                          action: "call-service",
-                          service: "select.select_option",
-                          target: {
-                            entity_id: "select.sbf_financial_view_period",
-                          },
-                          data: { option: "Weekly" },
-                        },
-                      },
-                      {
-                        type: "template",
-                        content: "Monthly",
-                        card_mod: {
-                          style:
-                            "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Monthly') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Monthly') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Monthly') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Monthly') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                        },
-                        tap_action: {
-                          action: "call-service",
-                          service: "select.select_option",
-                          target: {
-                            entity_id: "select.sbf_financial_view_period",
-                          },
-                          data: { option: "Monthly" },
-                        },
-                      },
-                      {
-                        type: "template",
-                        content: "Yearly",
-                        card_mod: {
-                          style:
-                            "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'Yearly') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'Yearly') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'Yearly') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'Yearly') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                        },
-                        tap_action: {
-                          action: "call-service",
-                          service: "select.select_option",
-                          target: {
-                            entity_id: "select.sbf_financial_view_period",
-                          },
-                          data: { option: "Yearly" },
-                        },
-                      },
-                      {
-                        type: "template",
-                        content: "All",
-                        card_mod: {
-                          style:
-                            "ha-card {\n  background: {{ 'var(--card-background-color)' if is_state('select.sbf_financial_view_period', 'All-Time') else 'transparent' }} !important;\n  box-shadow: {{ '0 2px 4px rgba(0,0,0,0.1)' if is_state('select.sbf_financial_view_period', 'All-Time') else 'none' }} !important;\n  border: none !important;\n  --text-color: {{ 'var(--primary-text-color)' if is_state('select.sbf_financial_view_period', 'All-Time') else 'var(--secondary-text-color)' }};\n  font-weight: {{ '600' if is_state('select.sbf_financial_view_period', 'All-Time') else '400' }};\n  margin: 0 !important;\n  border-radius: 20px !important;\n  padding: 0px 8px !important;\n}\n",
-                        },
-                        tap_action: {
-                          action: "call-service",
-                          service: "select.select_option",
-                          target: {
-                            entity_id: "select.sbf_financial_view_period",
-                          },
-                          data: { option: "All-Time" },
-                        },
-                      },
-                    ],
-                  });
-                }
-              }
-            });
-          }
-
-          newViews.push(parsedSub);
-        });
-      }
-
-      const mainFinView = newViews.find((v) => v.path === "financials");
-      let sourcePill = null;
-      if (
-        mainFinView &&
-        mainFinView.sections &&
-        mainFinView.sections[0] &&
-        mainFinView.sections[0].cards
-      ) {
-        sourcePill = mainFinView.sections[0].cards.find(
-          (c) =>
-            c.type === "custom:mushroom-chips-card" &&
-            c.chips &&
-            c.chips.length === 5,
-        );
-      }
-
-      const sysViewsList = [
-        "financials-total-system-earnings",
-        "financials-solar-only-earnings",
-        "financials-battery-added-value",
-        "financials-effective-cost",
-        "financials-net-bill",
-      ];
-      newViews.forEach((v) => {
-        if (sysViewsList.includes(v.path)) {
-          if (v.cards && v.cards[0] && v.cards[0].cards) {
-            v.cards[0].cards.forEach((condCard) => {
-              if (
-                condCard.type === "conditional" &&
-                condCard.card &&
-                sourcePill
-              ) {
-                if (
-                  condCard.card.type === "custom:apexcharts-card" ||
-                  condCard.card.type === "custom:config-template-card"
-                ) {
-                  condCard.card = {
-                    type: "grid",
-                    columns: 1,
-                    square: false,
-                    card_mod: {
-                      style:
-                        "ha-card { box-shadow: none !important; background: none !important; border: none !important; margin: 0px !important; }",
-                    },
-                    cards: [
-                      JSON.parse(JSON.stringify(sourcePill)),
-                      condCard.card,
-                    ],
-                  };
-                } else if (condCard.card.cards) {
-                  let insertIndex = 0;
-                  const titleIndex = condCard.card.cards.findIndex(
-                    (c) => c.type === "custom:mushroom-template-card",
-                  );
-                  const pillsIndex = condCard.card.cards.findIndex(
-                    (c) => c.type === "custom:mushroom-chips-card",
-                  );
-                  if (pillsIndex !== -1) {
-                    insertIndex = pillsIndex;
-                  } else if (titleIndex !== -1) {
-                    insertIndex = titleIndex + 1;
-                  }
-                  condCard.card.cards.splice(
-                    insertIndex,
-                    0,
-                    JSON.parse(JSON.stringify(sourcePill)),
-                  );
-                }
-              }
-            });
-          }
-        }
-      });
-
-      // --- END DYNAMIC FINANCIALS INJECTION ---
-
-      return { views: newViews };
+    if (prefix !== "sensor.sbf2_") {
+      let str = JSON.stringify(allViews);
+      str = str.replaceAll("sensor.sbf2_", prefix);
+      allViews = JSON.parse(str);
     }
 
-    return { views: finalViews };
+    return { views: allViews };
   }
 }
 
 const safeDefine = (tag, baseClass) => {
-  if (!customElements.get(tag)) {
+  if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, class extends baseClass { });
   }
 };
 
-safeDefine("ll-strategy-solar-battery-financials", SbfDashboardStrategy);
-safeDefine("ll-strategy-sbf", SbfDashboardStrategy);
-safeDefine(
+[
+  "ll-strategy-solar-battery-financials",
+  "ll-strategy-sbf",
   "ll-strategy-dashboard-solar-battery-financials",
-  SbfDashboardStrategy,
-);
-safeDefine("ll-strategy-view-solar-battery-financials", SbfDashboardStrategy);
-
-// Register with 'custom-' prefix so HA's scoped custom element registry forwards them to the global registry
-safeDefine(
+  "ll-strategy-view-solar-battery-financials",
   "ll-strategy-dashboard-custom-solar-battery-financials",
-  SbfDashboardStrategy,
-);
-safeDefine("ll-strategy-view-custom-solar-battery-financials", SbfDashboardStrategy);
+  "ll-strategy-view-custom-solar-battery-financials",
+].forEach((tag) => safeDefine(tag, SbfDashboardStrategy));
