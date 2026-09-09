@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.38)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.40)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -299,6 +299,75 @@ const makeApexDataLabels = (enabled, formatter) => ({
   formatter,
 });
 
+const yearlySumDataGen = (entity) =>
+  `return (async () => {
+  const now = new Date(), currentYear = now.getFullYear();
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(currentYear - 11, 0, 1).toISOString(),
+    end_time: new Date(currentYear + 1, 0, 1).toISOString(),
+    statistic_ids: ['${entity}'],
+    period: 'month',
+    types: ['change']
+  });
+  const data = res?.['${entity}'] || [];
+  const buckets = [];
+  for (let k = 0; k < 12; k++) {
+    const y = currentYear - k;
+    const bStart = new Date(y, 0, 1).getTime();
+    const bEnd = new Date(y + 1, 0, 1).getTime();
+    let bSum = 0, hasData = false;
+    data.forEach(c => {
+      const ts = new Date(c.start).getTime();
+      if (ts >= bStart && ts < bEnd) {
+        if (c.change != null) { bSum += c.change; hasData = true; }
+      }
+    });
+    if (hasData) buckets.push([bStart, parseFloat(bSum.toFixed(2))]);
+  }
+  return buckets.sort((a, b) => a[0] - b[0]);
+})();`;
+
+const yearlyFinalDataGen = (entity) =>
+  `return (async () => {
+  const now = new Date(), currentYear = now.getFullYear();
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(currentYear - 11, 0, 1).toISOString(),
+    end_time: new Date(currentYear + 1, 0, 1).toISOString(),
+    statistic_ids: ['${entity}'],
+    period: 'month',
+    types: ['state']
+  });
+  const data = res?.['${entity}'] || [];
+  const buckets = [];
+  for (let k = 0; k < 12; k++) {
+    const y = currentYear - k;
+    const bStart = new Date(y, 0, 1).getTime();
+    const bEnd = new Date(y + 1, 0, 1).getTime();
+    let bFinal = null, hasData = false, lastTs = 0;
+    data.forEach(c => {
+      const ts = new Date(c.start).getTime();
+      if (ts >= bStart && ts < bEnd) {
+        if (c.state != null && ts >= lastTs) {
+          bFinal = c.state;
+          lastTs = ts;
+          hasData = true;
+        }
+      }
+    });
+    if (y === currentYear) {
+      const liveState = parseFloat(hass.states['${entity}']?.state);
+      if (!isNaN(liveState)) {
+        bFinal = liveState;
+        hasData = true;
+      }
+    }
+    if (hasData && bFinal !== null) buckets.push([bStart, parseFloat(bFinal.toFixed(2))]);
+  }
+  return buckets.sort((a, b) => a[0] - b[0]);
+})();`;
+
 const makeColSeries = (entity, name, color, statsPeriod, isYearly, unit = "") => ({
   entity,
   name,
@@ -306,9 +375,40 @@ const makeColSeries = (entity, name, color, statsPeriod, isYearly, unit = "") =>
   ...(color ? { color } : {}),
   ...(unit ? { unit } : {}),
   show: { datalabels: true },
-  statistics: { type: "change", period: statsPeriod, align: "start" },
-  ...(isYearly ? { group_by: { func: "sum", duration: "1y" } } : {}),
+  ...(isYearly
+    ? {
+        group_by: { func: "last", duration: "1y" },
+        data_generator: yearlySumDataGen(entity),
+      }
+    : { statistics: { type: "change", period: statsPeriod, align: "start" } }),
 });
+
+const makeSeries = (entityBase, name, color, t, unit = "") => {
+  const isYearly = t.period === "Yearly";
+  const isAllTime = t.period === "All-Time";
+  const entity = isYearly ? `${entityBase}_yearly` : `${entityBase}_cumulative`;
+
+  return {
+    entity,
+    name,
+    type: isAllTime ? "area" : "column",
+    ...(color ? { color } : {}),
+    ...(unit ? { unit } : {}),
+    show: { datalabels: !isAllTime },
+    ...(isYearly
+      ? {
+          group_by: { func: "last", duration: "1y" },
+          data_generator: yearlyFinalDataGen(entity),
+        }
+      : isAllTime
+      ? {
+          statistics: { type: "state", period: "month", align: "start" },
+        }
+      : {
+          statistics: { type: "change", period: t.stats, align: "start" },
+        }),
+  };
+};
 
 const staticOrConfigApexConfig = (yAxisTitle, thresholds, dataLabelsEnabled, formatter = EVAL_NUMERIC_FORMATTER) =>
   baseApexConfig(yAxisTitle, {
@@ -557,9 +657,9 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       stroke: { show: true, width: 1.5, colors: ["#ffc107", "#9c27b0"] },
       dataLabels: makeApexDataLabels(dLabels, EVAL_STACKED_EARNINGS_FORMATTER),
     }),
-    getSeries: (statsPeriod, isYearly) => [
-      makeColSeries("sensor.sbf2_solar_only_earnings_rate_cumulative", "Solar", "#ffc107", statsPeriod, isYearly),
-      makeColSeries("sensor.sbf2_battery_added_value_rate_cumulative", "Battery", "#9c27b0", statsPeriod, isYearly),
+    getSeries: (t) => [
+      makeSeries("sensor.sbf2_solar_only_earnings_rate", "Solar", "#ffc107", t),
+      makeSeries("sensor.sbf2_battery_added_value_rate", "Battery", "#9c27b0", t),
     ],
   },
   {
@@ -570,8 +670,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       stroke: { show: true, width: 1.5, colors: ["#ffc107"] },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (statsPeriod, isYearly) => [
-      makeColSeries("sensor.sbf2_solar_only_earnings_rate_cumulative", "Solar-Only Earnings", "#ffc107", statsPeriod, isYearly),
+    getSeries: (t) => [
+      makeSeries("sensor.sbf2_solar_only_earnings_rate", "Solar-Only Earnings", "#ffc107", t),
     ],
   },
   {
@@ -582,8 +682,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       stroke: { show: true, width: 1.5, colors: ["#9c27b0"] },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (statsPeriod, isYearly) => [
-      makeColSeries("sensor.sbf2_battery_added_value_rate_cumulative", "Battery Added Value", "#9c27b0", statsPeriod, isYearly),
+    getSeries: (t) => [
+      makeSeries("sensor.sbf2_battery_added_value_rate", "Battery Added Value", "#9c27b0", t),
     ],
   },
   {
@@ -602,8 +702,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (statsPeriod, isYearly) => [
-      makeColSeries("sensor.sbf2_total_system_cost_rate_cumulative", "Effective Cost", null, statsPeriod, isYearly),
+    getSeries: (t) => [
+      makeSeries("sensor.sbf2_total_system_cost_rate", "Effective Cost", "#0288d1", t),
     ],
   },
   {
@@ -622,8 +722,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (statsPeriod, isYearly) => [
-      makeColSeries("sensor.sbf2_net_grid_cost_rate_cumulative", "Net Bill", null, statsPeriod, isYearly),
+    getSeries: (t) => [
+      makeSeries("sensor.sbf2_net_grid_cost_rate", "Net Bill", "#6366f1", t),
     ],
   },
 ];
@@ -637,19 +737,23 @@ const SYSTEM_TABS = [
 ];
 
 const createSystemSubviewTab = (t, cfg, th) => {
-  const isYearly = !t.sel;
-  const dLabels = isYearly
+  const isYearly = t.period === "Yearly";
+  const isAllTime = t.period === "All-Time";
+  const isStaticSpan = isYearly || isAllTime;
+
+  const dLabels = isAllTime
+    ? false
+    : isYearly
     ? true
     : `\${window.innerWidth < 600 ? parseInt(states['${t.sel}'].state) <= ${t.mCut || 0} : parseInt(states['${t.sel}'].state) <= ${t.dCut || 0}}`;
-  const statsPeriod = isYearly ? "month" : t.stats;
   const apexExtra = cfg.getApexConfig(dLabels, th[t.thKey]);
-  const series = cfg.getSeries(statsPeriod, isYearly);
+  const series = cfg.getSeries(t);
 
-  const chartCard = isYearly
+  const chartCard = isStaticSpan
     ? {
         type: "custom:apexcharts-card",
         graph_span: "10y",
-        span: { end: "year" },
+        span: { end: isAllTime ? "day" : "year" },
         header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
         apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
         series,
@@ -670,7 +774,7 @@ const createSystemSubviewTab = (t, cfg, th) => {
   const cards = [
     subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
     createPeriodPills("select.sbf_financial_view_period", true),
-    ...(isYearly ? [] : [createChartChips(t.sel, t.chips)]),
+    ...(isStaticSpan ? [] : [createChartChips(t.sel, t.chips)]),
     chartCard,
   ];
 
