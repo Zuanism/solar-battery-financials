@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.37)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.38)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -645,48 +645,36 @@ const createSystemSubviewTab = (t, cfg, th) => {
   const apexExtra = cfg.getApexConfig(dLabels, th[t.thKey]);
   const series = cfg.getSeries(statsPeriod, isYearly);
 
-  if (isYearly) {
-    return {
-      type: "conditional",
-      conditions: [{ entity: "select.sbf_financial_view_period", state: t.period }],
-      card: {
-        type: "grid",
-        columns: 1,
-        square: false,
-        card_mod: { style: STYLES.noShadow },
-        cards: [
-          subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
-          createPeriodPills("select.sbf_financial_view_period", true),
-          {
-            type: "custom:apexcharts-card",
-            graph_span: "10y",
-            span: { end: "year" },
-            header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
-            apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
-            series,
-          },
-        ],
-      },
-    };
-  }
-
-  return conditionalVerticalStack(t.period, [
-    subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
-    createPeriodPills("select.sbf_financial_view_period", true),
-    createChartChips(t.sel, t.chips),
-    {
-      type: "custom:config-template-card",
-      entities: [t.sel],
-      card: {
+  const chartCard = isYearly
+    ? {
         type: "custom:apexcharts-card",
-        graph_span: `\${states['${t.sel}'].state + '${t.unit}'}`,
-        span: { end: "day" },
-        header: { show: false, title: cfg.title },
+        graph_span: "10y",
+        span: { end: "year" },
+        header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
         apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
         series,
-      },
-    },
-  ]);
+      }
+    : {
+        type: "custom:config-template-card",
+        entities: [t.sel],
+        card: {
+          type: "custom:apexcharts-card",
+          graph_span: `\${states['${t.sel}'].state + '${t.unit}'}`,
+          span: { end: "day" },
+          header: { show: false, title: cfg.title },
+          apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
+          series,
+        },
+      };
+
+  const cards = [
+    subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
+    createPeriodPills("select.sbf_financial_view_period", true),
+    ...(isYearly ? [] : [createChartChips(t.sel, t.chips)]),
+    chartCard,
+  ];
+
+  return conditionalVerticalStack(t.period, cards);
 };
 
 const buildSystemSubviews = () =>
