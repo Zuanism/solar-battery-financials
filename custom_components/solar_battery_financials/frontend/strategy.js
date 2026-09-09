@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.36)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.37)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -632,8 +632,8 @@ const SYSTEM_TABS = [
   { period: "Daily", suffix: "daily", sel: "select.sbf_chart_daily_days", unit: "d", stats: "day", chips: CHART_PERIOD_CHIPS.daily, mCut: 7, dCut: 30, thKey: "daily" },
   { period: "Weekly", suffix: "weekly", sel: "select.sbf_chart_weekly_weeks", unit: "w", stats: "week", chips: CHART_PERIOD_CHIPS.weekly, mCut: 8, dCut: 26, thKey: "weekly" },
   { period: "Monthly", suffix: "monthly", sel: "select.sbf_chart_monthly_months", unit: "month", stats: "month", chips: CHART_PERIOD_CHIPS.monthly, mCut: 6, dCut: 24, thKey: "monthly" },
-  { period: "Yearly", titleSuffix: "Last 10 Years", thKey: "yearly" },
-  { period: "All-Time", titleSuffix: "All-Time", thKey: "allTime" },
+  { period: "Yearly", suffix: "yearly", titleSuffix: "Last 10 Years", thKey: "yearly" },
+  { period: "All-Time", suffix: "cumulative", titleSuffix: "All-Time", thKey: "allTime" },
 ];
 
 const createSystemSubviewTab = (t, cfg, th) => {
@@ -655,6 +655,7 @@ const createSystemSubviewTab = (t, cfg, th) => {
         square: false,
         card_mod: { style: STYLES.noShadow },
         cards: [
+          subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
           createPeriodPills("select.sbf_financial_view_period", true),
           {
             type: "custom:apexcharts-card",
