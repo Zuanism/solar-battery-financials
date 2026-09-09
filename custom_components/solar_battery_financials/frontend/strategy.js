@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.40)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.41)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -383,7 +383,7 @@ const makeColSeries = (entity, name, color, statsPeriod, isYearly, unit = "") =>
     : { statistics: { type: "change", period: statsPeriod, align: "start" } }),
 });
 
-const makeSeries = (entityBase, name, color, t, unit = "") => {
+const makeSeries = (entityBase, name, color, t, unit = "", allTimePeriod = "month") => {
   const isYearly = t.period === "Yearly";
   const isAllTime = t.period === "All-Time";
   const entity = isYearly ? `${entityBase}_yearly` : `${entityBase}_cumulative`;
@@ -402,7 +402,7 @@ const makeSeries = (entityBase, name, color, t, unit = "") => {
         }
       : isAllTime
       ? {
-          statistics: { type: "state", period: "month", align: "start" },
+          statistics: { type: "state", period: allTimePeriod, align: "start" },
         }
       : {
           statistics: { type: "change", period: t.stats, align: "start" },
@@ -583,6 +583,81 @@ const createDeviceYearlyRateChart = (devTarget, label) =>
     ],
   });
 
+const deviceAllTimeRateDataGen = (devTarget) =>
+  `return (async () => {
+  const costId = "sensor.sbf2_${devTarget}_cost_rate_cumulative", energyId = "sensor.sbf2_${devTarget}_energy_rate_cumulative";
+  const end = new Date();
+  const tenYearsAgo = new Date();
+  tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: tenYearsAgo.toISOString(),
+    end_time: end.toISOString(),
+    statistic_ids: [costId, energyId],
+    period: 'month'
+  });
+  const costs = res?.[costId] || [], energies = res?.[energyId] || [], energyMap = new Map();
+  energies.forEach(e => energyMap.set(new Date(e.start).getTime(), e.state));
+  const buckets = [];
+  costs.forEach(c => {
+    const kwh = energyMap.get(new Date(c.start).getTime());
+    const val = (c.state != null && kwh != null && kwh > 0) ? parseFloat((c.state / kwh).toFixed(3)) : null;
+    if (val !== null) buckets.push([new Date(c.start).getTime(), val]);
+  });
+  if (buckets.length === 0) {
+    const liveCost = parseFloat(hass.states[costId]?.state);
+    const liveKwh = parseFloat(hass.states[energyId]?.state);
+    if (!isNaN(liveCost) && !isNaN(liveKwh) && liveKwh > 0) {
+      buckets.push([Date.now(), parseFloat((liveCost / liveKwh).toFixed(3))]);
+    }
+  }
+  return buckets.sort((a, b) => a[0] - b[0]);
+})();`;
+
+const createDeviceAllTimeRateChart = (devTarget, label, allTimeSpan = "10y") =>
+  conditionalCumulativeChart(devTarget, {
+    type: "custom:apexcharts-card",
+    graph_span: allTimeSpan,
+    span: { end: "day" },
+    header: { show: false, title: `${label} (EUR/kWh)` },
+    apex_config: baseApexConfig("EUR/kWh", {
+      stroke: { show: true, width: 1.5, colors: ["#f97316"] },
+      dataLabels: { enabled: false },
+    }),
+    series: [
+      {
+        entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
+        name: `${label} (EUR/kWh)`,
+        color: "#f97316",
+        type: "area",
+        unit: " €/kWh",
+        show: { datalabels: false },
+        data_generator: deviceAllTimeRateDataGen(devTarget),
+      },
+    ],
+  });
+
+const createDeviceCumulativeAreaChart = ({
+  entityBase,
+  name,
+  yAxisTitle,
+  color,
+  unit = "",
+  allTimeSpan = "10y",
+  allTimePeriod = "month",
+  t,
+}) => ({
+  type: "custom:apexcharts-card",
+  graph_span: allTimeSpan,
+  span: { end: "day" },
+  header: { show: false, title: `${name} (${t.titleSuffix})` },
+  apex_config: baseApexConfig(yAxisTitle, {
+    stroke: { show: true, width: 1.5, colors: [color] },
+    dataLabels: { enabled: false },
+  }),
+  series: [makeSeries(entityBase, name, color, t, unit, allTimePeriod)],
+});
+
 // ============================================================================
 // 5. DEVICE SUBVIEWS BUILDER
 // ============================================================================
@@ -594,20 +669,78 @@ const DEVICE_TABS = [
   { period: "All-Time", suffix: "cumulative", titleSuffix: "All-Time", costThresh: [500.0, 1500.0], energyThresh: [2000.0, 5000.0] },
 ];
 
-const createDeviceSubviewTab = (t, label, devTarget) => {
-  const isYearly = !t.sel;
+const createDeviceSubviewTab = (t, label, devTarget, allTimeSpan = "10y", allTimePeriod = "month") => {
+  const isYearly = t.period === "Yearly";
+  const isAllTime = t.period === "All-Time";
+  const isStaticSpan = isYearly || isAllTime;
   const headerEntity = `sensor.sbf2_${devTarget}_cost_rate_${t.suffix}`;
-  const costChart = isYearly
-    ? createYearlyStaticBarChart({ entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`, name: `${label} (${t.titleSuffix})`, yAxisTitle: "Cost (€)", thresholds: t.costThresh })
-    : createBarChartCard({ entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`, name: label, yAxisTitle: "Cost (€)", selectEntity: t.sel, spanUnit: t.unit, statsPeriod: t.stats, thresholds: t.costThresh, mobileCutoff: t.mCut, desktopCutoff: t.dCut });
 
-  const energyChart = isYearly
-    ? createYearlyStaticBarChart({ entity: `sensor.sbf2_${devTarget}_energy_rate_cumulative`, name: `${label} (Energy)`, yAxisTitle: "Energy (kWh)", thresholds: t.energyThresh, unit: " kWh" })
-    : createBarChartCard({ entity: `sensor.sbf2_${devTarget}_energy_rate_cumulative`, name: `${label} (Energy)`, yAxisTitle: "Energy (kWh)", selectEntity: t.sel, spanUnit: t.unit, statsPeriod: t.stats, thresholds: t.energyThresh, mobileCutoff: t.mCut, desktopCutoff: t.dCut, unit: " kWh" });
+  let costChart;
+  let energyChart;
+  let rateChart;
 
-  const rateChart = isYearly
-    ? createDeviceYearlyRateChart(devTarget, label)
-    : createDeviceRateChart({
+  if (isAllTime) {
+    costChart = createDeviceCumulativeAreaChart({
+      entityBase: `sensor.sbf2_${devTarget}_cost_rate`,
+      name: label,
+      yAxisTitle: "Cost (€)",
+      color: "#0288d1",
+      unit: " €",
+      allTimeSpan,
+      allTimePeriod,
+      t,
+    });
+    energyChart = createDeviceCumulativeAreaChart({
+      entityBase: `sensor.sbf2_${devTarget}_energy_rate`,
+      name: `${label} (Energy)`,
+      yAxisTitle: "Energy (kWh)",
+      color: "#10b981",
+      unit: " kWh",
+      allTimeSpan,
+      allTimePeriod,
+      t,
+    });
+    rateChart = createDeviceAllTimeRateChart(devTarget, label, allTimeSpan);
+  } else if (isYearly) {
+    costChart = createYearlyStaticBarChart({
+      entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
+      name: `${label} (${t.titleSuffix})`,
+      yAxisTitle: "Cost (€)",
+      thresholds: t.costThresh,
+    });
+    energyChart = createYearlyStaticBarChart({
+      entity: `sensor.sbf2_${devTarget}_energy_rate_cumulative`,
+      name: `${label} (Energy)`,
+      yAxisTitle: "Energy (kWh)",
+      thresholds: t.energyThresh,
+      unit: " kWh",
+    });
+    rateChart = createDeviceYearlyRateChart(devTarget, label);
+  } else {
+    costChart = createBarChartCard({
+      entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
+      name: label,
+      yAxisTitle: "Cost (€)",
+      selectEntity: t.sel,
+      spanUnit: t.unit,
+      statsPeriod: t.stats,
+      thresholds: t.costThresh,
+      mobileCutoff: t.mCut,
+      desktopCutoff: t.dCut,
+    });
+    energyChart = createBarChartCard({
+      entity: `sensor.sbf2_${devTarget}_energy_rate_cumulative`,
+      name: `${label} (Energy)`,
+      yAxisTitle: "Energy (kWh)",
+      selectEntity: t.sel,
+      spanUnit: t.unit,
+      statsPeriod: t.stats,
+      thresholds: t.energyThresh,
+      mobileCutoff: t.mCut,
+      desktopCutoff: t.dCut,
+      unit: " kWh",
+    });
+    rateChart = createDeviceRateChart({
       devTarget,
       label,
       selectEntity: t.sel,
@@ -616,11 +749,12 @@ const createDeviceSubviewTab = (t, label, devTarget) => {
       mobileCutoff: t.mCut,
       desktopCutoff: t.dCut,
     });
+  }
 
   const cards = [
     subviewHeaderCard(headerEntity, label),
     createPeriodPills("select.sbf_financial_view_period", true),
-    ...(isYearly ? [] : [createChartChips(t.sel, t.chips)]),
+    ...(isStaticSpan ? [] : [createChartChips(t.sel, t.chips)]),
     costChart,
     energyChart,
     rateChart,
@@ -628,12 +762,11 @@ const createDeviceSubviewTab = (t, label, devTarget) => {
   return conditionalVerticalStack(t.period, cards);
 };
 
-
-const buildDeviceSubview = (label, devTarget) =>
+const buildDeviceSubview = (label, devTarget, allTimeSpan = "10y", allTimePeriod = "month") =>
   makePanelSubview(
     `${label} History`,
     `financials-${slugify(label)}`,
-    DEVICE_TABS.map((t) => createDeviceSubviewTab(t, label, devTarget))
+    DEVICE_TABS.map((t) => createDeviceSubviewTab(t, label, devTarget, allTimeSpan, allTimePeriod))
   );
 
 // ============================================================================
@@ -652,14 +785,15 @@ const SYSTEM_SUBVIEW_CONFIGS = [
     title: "Total System Earnings",
     path: "financials-total-system-earnings",
     sensorKey: "system_earnings",
+    stacked: true,
     getApexConfig: (dLabels) => ({
       chart: { stacked: true, height: 280, zoom: { enabled: false }, toolbar: { show: false } },
       stroke: { show: true, width: 1.5, colors: ["#ffc107", "#9c27b0"] },
       dataLabels: makeApexDataLabels(dLabels, EVAL_STACKED_EARNINGS_FORMATTER),
     }),
-    getSeries: (t) => [
-      makeSeries("sensor.sbf2_solar_only_earnings_rate", "Solar", "#ffc107", t),
-      makeSeries("sensor.sbf2_battery_added_value_rate", "Battery", "#9c27b0", t),
+    getSeries: (t, allTimePeriod) => [
+      makeSeries("sensor.sbf2_solar_only_earnings_rate", "Solar", "#ffc107", t, "", allTimePeriod),
+      makeSeries("sensor.sbf2_battery_added_value_rate", "Battery", "#9c27b0", t, "", allTimePeriod),
     ],
   },
   {
@@ -670,8 +804,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       stroke: { show: true, width: 1.5, colors: ["#ffc107"] },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (t) => [
-      makeSeries("sensor.sbf2_solar_only_earnings_rate", "Solar-Only Earnings", "#ffc107", t),
+    getSeries: (t, allTimePeriod) => [
+      makeSeries("sensor.sbf2_solar_only_earnings_rate", "Solar-Only Earnings", "#ffc107", t, "", allTimePeriod),
     ],
   },
   {
@@ -682,8 +816,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       stroke: { show: true, width: 1.5, colors: ["#9c27b0"] },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (t) => [
-      makeSeries("sensor.sbf2_battery_added_value_rate", "Battery Added Value", "#9c27b0", t),
+    getSeries: (t, allTimePeriod) => [
+      makeSeries("sensor.sbf2_battery_added_value_rate", "Battery Added Value", "#9c27b0", t, "", allTimePeriod),
     ],
   },
   {
@@ -702,8 +836,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (t) => [
-      makeSeries("sensor.sbf2_total_system_cost_rate", "Effective Cost", "#0288d1", t),
+    getSeries: (t, allTimePeriod) => [
+      makeSeries("sensor.sbf2_total_system_cost_rate", "Effective Cost", "#0288d1", t, "", allTimePeriod),
     ],
   },
   {
@@ -722,8 +856,8 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       },
       dataLabels: makeApexDataLabels(dLabels, EVAL_MONEY_FORMATTER),
     }),
-    getSeries: (t) => [
-      makeSeries("sensor.sbf2_net_grid_cost_rate", "Net Bill", "#6366f1", t),
+    getSeries: (t, allTimePeriod) => [
+      makeSeries("sensor.sbf2_net_grid_cost_rate", "Net Bill", "#6366f1", t, "", allTimePeriod),
     ],
   },
 ];
@@ -736,7 +870,7 @@ const SYSTEM_TABS = [
   { period: "All-Time", suffix: "cumulative", titleSuffix: "All-Time", thKey: "allTime" },
 ];
 
-const createSystemSubviewTab = (t, cfg, th) => {
+const createSystemSubviewTab = (t, cfg, th, allTimeSpan = "10y", allTimePeriod = "month") => {
   const isYearly = t.period === "Yearly";
   const isAllTime = t.period === "All-Time";
   const isStaticSpan = isYearly || isAllTime;
@@ -747,12 +881,13 @@ const createSystemSubviewTab = (t, cfg, th) => {
     ? true
     : `\${window.innerWidth < 600 ? parseInt(states['${t.sel}'].state) <= ${t.mCut || 0} : parseInt(states['${t.sel}'].state) <= ${t.dCut || 0}}`;
   const apexExtra = cfg.getApexConfig(dLabels, th[t.thKey]);
-  const series = cfg.getSeries(t);
+  const series = cfg.getSeries(t, allTimePeriod);
 
   const chartCard = isStaticSpan
     ? {
         type: "custom:apexcharts-card",
-        graph_span: "10y",
+        ...(cfg.stacked ? { stacked: true } : {}),
+        graph_span: isAllTime ? allTimeSpan : "10y",
         span: { end: isAllTime ? "day" : "year" },
         header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
         apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
@@ -763,6 +898,7 @@ const createSystemSubviewTab = (t, cfg, th) => {
         entities: [t.sel],
         card: {
           type: "custom:apexcharts-card",
+          ...(cfg.stacked ? { stacked: true } : {}),
           graph_span: `\${states['${t.sel}'].state + '${t.unit}'}`,
           span: { end: "day" },
           header: { show: false, title: cfg.title },
@@ -781,13 +917,13 @@ const createSystemSubviewTab = (t, cfg, th) => {
   return conditionalVerticalStack(t.period, cards);
 };
 
-const buildSystemSubviews = () =>
+const buildSystemSubviews = (allTimeSpan = "10y", allTimePeriod = "month") =>
   SYSTEM_SUBVIEW_CONFIGS.map((cfg) => {
     const th = cfg.thresholds || {};
     return makePanelSubview(
       `${cfg.title} History`,
       cfg.path,
-      SYSTEM_TABS.map((t) => createSystemSubviewTab(t, cfg, th))
+      SYSTEM_TABS.map((t) => createSystemSubviewTab(t, cfg, th, allTimeSpan, allTimePeriod))
     );
   });
 
@@ -1119,6 +1255,48 @@ class SbfDashboardStrategy extends HTMLElement {
     const parts = window.location.pathname.split("/");
     const dashUrl = parts.length > 1 && parts[1] !== "" ? "/" + parts[1] : "";
 
+    let dynamicAllTimeSpan = "10y";
+    let dynamicAllTimePeriod = "month";
+    if (info.hass && typeof info.hass.callWS === "function") {
+      try {
+        const tenYearsAgo = new Date();
+        tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+        const checkSensors = [
+          prefix + "total_system_cost_rate_cumulative",
+          prefix + "solar_only_earnings_rate_cumulative",
+          prefix + "net_grid_cost_rate_cumulative",
+        ];
+        const res = await info.hass.callWS({
+          type: "recorder/statistics_during_period",
+          start_time: tenYearsAgo.toISOString(),
+          statistic_ids: checkSensors,
+          period: "month",
+          types: ["state", "change"],
+        });
+        let earliestTs = Infinity;
+        if (res) {
+          for (const sId of checkSensors) {
+            const pts = res[sId];
+            if (pts && pts.length > 0 && pts[0].start) {
+              const ts = new Date(pts[0].start).getTime();
+              if (ts < earliestTs) {
+                earliestTs = ts;
+              }
+            }
+          }
+        }
+        if (earliestTs < Infinity) {
+          const allTimeDays = Math.ceil((Date.now() - earliestTs) / (1000 * 60 * 60 * 24));
+          if (allTimeDays > 0) {
+            dynamicAllTimeSpan = `${allTimeDays + 2}d`;
+            dynamicAllTimePeriod = allTimeDays <= 365 ? "day" : "month";
+          }
+        }
+      } catch (err) {
+        console.warn("SBF: Failed to query dynamic all-time span, falling back to 10y", err);
+      }
+    }
+
     const totPwr = states[prefix + "total_power_consumption"];
     const tracked = totPwr?.attributes?.tracked_devices || [];
     const subDevs = totPwr?.attributes?.sub_devices || [];
@@ -1142,10 +1320,10 @@ class SbfDashboardStrategy extends HTMLElement {
       const meta = getDevInfo(dev, tracked, states, names, prefix, untrackedSensor);
       const label = dev === untrackedSensor ? "Untracked" : meta.label;
       const devTarget = dev === untrackedSensor ? "untracked" : meta.devTarget;
-      return buildDeviceSubview(label, devTarget);
+      return buildDeviceSubview(label, devTarget, dynamicAllTimeSpan, dynamicAllTimePeriod);
     });
 
-    const systemSubviews = buildSystemSubviews();
+    const systemSubviews = buildSystemSubviews(dynamicAllTimeSpan, dynamicAllTimePeriod);
 
     let allViews = [powerView, finView, ...powerSubviews, ...deviceSubviews, ...systemSubviews];
 
