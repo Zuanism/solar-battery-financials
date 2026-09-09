@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.41)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.44)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -255,6 +255,9 @@ const EVAL_NUMERIC_FORMATTER =
 const EVAL_RATE_FORMATTER =
   "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3);\n  }\n  return '';\n}\n";
 
+const EVAL_RATE_TOOLTIP_FORMATTER =
+  "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return parseFloat(val).toFixed(3) + ' €/kWh';\n  }\n  return '';\n}\n";
+
 const EVAL_MONEY_FORMATTER =
   "EVAL:function(val) {\n  if (val !== null && val !== undefined && val !== '') {\n      return '€' + parseFloat(val).toFixed(2);\n  }\n  return '';\n}\n";
 
@@ -281,7 +284,12 @@ const barColorRanges = (low, high) => [
 ];
 
 const baseApexConfig = (yAxisTitle, extra = {}) => ({
-  yaxis: { show: true, title: { text: yAxisTitle } },
+  yaxis: {
+    show: true,
+    title: { text: yAxisTitle },
+    decimalsInFloat: 2,
+    ...(extra.yaxis || {}),
+  },
   chart: { height: 280, zoom: { enabled: false }, toolbar: { show: false } },
   xaxis: { type: "datetime", tooltip: { enabled: false } },
   tooltip: { enabled: true },
@@ -289,6 +297,16 @@ const baseApexConfig = (yAxisTitle, extra = {}) => ({
   stroke: { show: true, width: 1.5 },
   grid: { borderColor: "rgba(128, 128, 128, 0.2)", strokeDashArray: 2 },
   ...extra,
+  ...(extra.yaxis
+    ? {
+        yaxis: {
+          show: true,
+          title: { text: yAxisTitle },
+          decimalsInFloat: 2,
+          ...extra.yaxis,
+        },
+      }
+    : {}),
 });
 
 const makeApexDataLabels = (enabled, formatter) => ({
@@ -544,18 +562,29 @@ const createDeviceRateChart = ({ devTarget, label, selectEntity, spanUnit, stats
       graph_span: `\${states['${selectEntity}'].state + '${spanUnit}'}`,
       span: { end: "day" },
       header: { show: false, title: `${label} (EUR/kWh)` },
-      apex_config: staticOrConfigApexConfig(
-        "EUR/kWh",
-        [0.15, 0.3],
-        `\${window.innerWidth < 600 ? parseInt(states['${selectEntity}'].state) <= ${mobileCutoff} : parseInt(states['${selectEntity}'].state) <= ${desktopCutoff}}`,
-        EVAL_RATE_FORMATTER
-      ),
+      apex_config: {
+        ...staticOrConfigApexConfig(
+          "EUR/kWh",
+          [0.15, 0.3],
+          `\${window.innerWidth < 600 ? parseInt(states['${selectEntity}'].state) <= ${mobileCutoff} : parseInt(states['${selectEntity}'].state) <= ${desktopCutoff}}`,
+          EVAL_RATE_FORMATTER
+        ),
+        yaxis: {
+          show: true,
+          title: { text: "EUR/kWh" },
+          decimalsInFloat: 2,
+          labels: { formatter: EVAL_NUMERIC_FORMATTER },
+        },
+        tooltip: { enabled: true, y: { formatter: EVAL_RATE_TOOLTIP_FORMATTER } },
+      },
       series: [
         {
           entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
           name: `${label} (EUR/kWh)`,
           color: "#f97316",
           type: "column",
+          unit: " €/kWh",
+          float_precision: 3,
           show: { datalabels: true },
           data_generator: deviceRateDataGen(devTarget, selectEntity, spanUnit, statsPeriod),
         },
@@ -569,13 +598,24 @@ const createDeviceYearlyRateChart = (devTarget, label) =>
     graph_span: "10y",
     span: { end: "year" },
     header: { show: false, title: `${label} (EUR/kWh)` },
-    apex_config: staticOrConfigApexConfig("EUR/kWh", [0.15, 0.3], true, EVAL_RATE_FORMATTER),
+    apex_config: {
+      ...staticOrConfigApexConfig("EUR/kWh", [0.15, 0.3], true, EVAL_RATE_FORMATTER),
+      yaxis: {
+        show: true,
+        title: { text: "EUR/kWh" },
+        decimalsInFloat: 2,
+        labels: { formatter: EVAL_NUMERIC_FORMATTER },
+      },
+      tooltip: { enabled: true, y: { formatter: EVAL_RATE_TOOLTIP_FORMATTER } },
+    },
     series: [
       {
         entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
         name: `${label} (EUR/kWh)`,
         color: "#f97316",
         type: "column",
+        unit: " €/kWh",
+        float_precision: 3,
         show: { datalabels: true },
         group_by: { func: "last", duration: "1y" },
         data_generator: deviceYearlyRateDataGen(devTarget),
@@ -583,7 +623,7 @@ const createDeviceYearlyRateChart = (devTarget, label) =>
     ],
   });
 
-const deviceAllTimeRateDataGen = (devTarget) =>
+const deviceAllTimeRateDataGen = (devTarget, allTimePeriod = "month") =>
   `return (async () => {
   const costId = "sensor.sbf2_${devTarget}_cost_rate_cumulative", energyId = "sensor.sbf2_${devTarget}_energy_rate_cumulative";
   const end = new Date();
@@ -594,27 +634,39 @@ const deviceAllTimeRateDataGen = (devTarget) =>
     start_time: tenYearsAgo.toISOString(),
     end_time: end.toISOString(),
     statistic_ids: [costId, energyId],
-    period: 'month'
+    period: '${allTimePeriod}'
   });
   const costs = res?.[costId] || [], energies = res?.[energyId] || [], energyMap = new Map();
-  energies.forEach(e => energyMap.set(new Date(e.start).getTime(), e.state));
+  energies.forEach(e => {
+    const ts = new Date(e.start).getTime();
+    const val = e.state != null ? e.state : e.sum;
+    if (val != null) energyMap.set(ts, val);
+  });
   const buckets = [];
   costs.forEach(c => {
-    const kwh = energyMap.get(new Date(c.start).getTime());
-    const val = (c.state != null && kwh != null && kwh > 0) ? parseFloat((c.state / kwh).toFixed(3)) : null;
-    if (val !== null) buckets.push([new Date(c.start).getTime(), val]);
-  });
-  if (buckets.length === 0) {
-    const liveCost = parseFloat(hass.states[costId]?.state);
-    const liveKwh = parseFloat(hass.states[energyId]?.state);
-    if (!isNaN(liveCost) && !isNaN(liveKwh) && liveKwh > 0) {
-      buckets.push([Date.now(), parseFloat((liveCost / liveKwh).toFixed(3))]);
+    const cStart = new Date(c.start).getTime();
+    let kwh = energyMap.get(cStart);
+    if (kwh == null) {
+      let minDiff = 86400000;
+      for (const [eStart, eVal] of energyMap.entries()) {
+        const diff = Math.abs(cStart - eStart);
+        if (diff < minDiff) { minDiff = diff; kwh = eVal; }
+      }
     }
+    const costVal = c.state != null ? c.state : c.sum;
+    const val = (costVal != null && kwh != null && kwh > 0) ? parseFloat((costVal / kwh).toFixed(3)) : null;
+    if (val !== null) buckets.push([cStart, val]);
+  });
+  const liveCost = parseFloat(hass.states[costId]?.state);
+  const liveKwh = parseFloat(hass.states[energyId]?.state);
+  if (!isNaN(liveCost) && !isNaN(liveKwh) && liveKwh > 0) {
+    const liveRate = parseFloat((liveCost / liveKwh).toFixed(3));
+    buckets.push([Date.now(), liveRate]);
   }
   return buckets.sort((a, b) => a[0] - b[0]);
 })();`;
 
-const createDeviceAllTimeRateChart = (devTarget, label, allTimeSpan = "10y") =>
+const createDeviceAllTimeRateChart = (devTarget, label, allTimeSpan = "10y", allTimePeriod = "month") =>
   conditionalCumulativeChart(devTarget, {
     type: "custom:apexcharts-card",
     graph_span: allTimeSpan,
@@ -623,6 +675,13 @@ const createDeviceAllTimeRateChart = (devTarget, label, allTimeSpan = "10y") =>
     apex_config: baseApexConfig("EUR/kWh", {
       stroke: { show: true, width: 1.5, colors: ["#f97316"] },
       dataLabels: { enabled: false },
+      yaxis: {
+        show: true,
+        title: { text: "EUR/kWh" },
+        decimalsInFloat: 2,
+        labels: { formatter: EVAL_NUMERIC_FORMATTER },
+      },
+      tooltip: { enabled: true, y: { formatter: EVAL_RATE_TOOLTIP_FORMATTER } },
     }),
     series: [
       {
@@ -631,8 +690,9 @@ const createDeviceAllTimeRateChart = (devTarget, label, allTimeSpan = "10y") =>
         color: "#f97316",
         type: "area",
         unit: " €/kWh",
+        float_precision: 3,
         show: { datalabels: false },
-        data_generator: deviceAllTimeRateDataGen(devTarget),
+        data_generator: deviceAllTimeRateDataGen(devTarget, allTimePeriod),
       },
     ],
   });
@@ -700,7 +760,7 @@ const createDeviceSubviewTab = (t, label, devTarget, allTimeSpan = "10y", allTim
       allTimePeriod,
       t,
     });
-    rateChart = createDeviceAllTimeRateChart(devTarget, label, allTimeSpan);
+    rateChart = createDeviceAllTimeRateChart(devTarget, label, allTimeSpan, allTimePeriod);
   } else if (isYearly) {
     costChart = createYearlyStaticBarChart({
       entity: `sensor.sbf2_${devTarget}_cost_rate_cumulative`,
