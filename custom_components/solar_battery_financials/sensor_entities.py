@@ -84,13 +84,17 @@ class ManagedSensor(SbfSensorBase):
         self._key = key
         if device_class:
             self._attr_device_class = device_class
+        self._last_written_value: float | None = None
 
     async def async_added_to_hass(self) -> None:
         self.manager.listeners.append(self._handle_update)
 
     @callback
     def _handle_update(self, delta_hours: float) -> None:
-        self.async_write_ha_state()
+        new_val = self.native_value
+        if self._last_written_value != new_val:
+            self._last_written_value = new_val
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:
@@ -282,6 +286,7 @@ class CumulativeSensor(SbfSensorBase, RestoreEntity):
         self._source_key = source_key
         self._state = 0.0
         self._previous_rate = 0.0
+        self._last_written_value: float | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -301,7 +306,11 @@ class CumulativeSensor(SbfSensorBase, RestoreEntity):
             self._state += added
 
         self._previous_rate = self.manager.values[self._source_key]
-        self.async_write_ha_state()
+        
+        new_val = self.native_value
+        if self._last_written_value != new_val:
+            self._last_written_value = new_val
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:
@@ -337,6 +346,7 @@ class PeriodSensor(SbfSensorBase, RestoreEntity):
         self._state = 0.0
         self._previous_rate = 0.0
         self._last_reset = None
+        self._last_written_value: float | None = None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -393,7 +403,8 @@ class PeriodSensor(SbfSensorBase, RestoreEntity):
     @callback
     def _handle_update(self, delta_hours: float) -> None:
         now = dt_util.now()
-        if self._check_reset(now):
+        reset_occurred = self._check_reset(now)
+        if reset_occurred:
             self._attr_last_reset = now
 
         if delta_hours > 0:
@@ -401,7 +412,11 @@ class PeriodSensor(SbfSensorBase, RestoreEntity):
             self._state += added
 
         self._previous_rate = self.manager.values[self._source_key]
-        self.async_write_ha_state()
+        
+        new_val = self.native_value
+        if reset_occurred or self._last_written_value != new_val:
+            self._last_written_value = new_val
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:

@@ -1,7 +1,6 @@
 import os
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
@@ -20,16 +19,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data[DOMAIN].get("static_paths_registered"):
         script_url = "/solar_battery_financials/strategy.js"
         strategy_path = hass.config.path("custom_components/solar_battery_financials/frontend/strategy.js")
-        if os.path.exists(strategy_path):
+        if await hass.async_add_executor_job(os.path.exists, strategy_path):
             try:
                 await hass.http.async_register_static_paths(
                     [StaticPathConfig(script_url, strategy_path, False)]
                 )
             except RuntimeError:
                 pass
-            # 2. Globally inject script into HA Frontend (Zero-config + Cache Busting!)
-            version = int(os.path.getmtime(strategy_path))
-            add_extra_js_url(hass, f"{script_url}?v={version}")
         hass.data[DOMAIN]["static_paths_registered"] = True
 
     entry.async_on_unload(entry.add_update_listener(update_listener))

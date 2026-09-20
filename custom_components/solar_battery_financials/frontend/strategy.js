@@ -2,7 +2,7 @@
  * Lovelace Dashboard Strategy for Solar & Battery Financials
  * Modular Procedural Strategy (Pure Object Composition)
  */
-console.info("⚡ SBF Strategy JS loaded (Modular v5.44)");
+console.info("⚡ SBF Strategy JS loaded (Modular v5.46)");
 
 // ============================================================================
 // 1. REUSABLE CSS STYLES
@@ -299,13 +299,13 @@ const baseApexConfig = (yAxisTitle, extra = {}) => ({
   ...extra,
   ...(extra.yaxis
     ? {
-        yaxis: {
-          show: true,
-          title: { text: yAxisTitle },
-          decimalsInFloat: 2,
-          ...extra.yaxis,
-        },
-      }
+      yaxis: {
+        show: true,
+        title: { text: yAxisTitle },
+        decimalsInFloat: 2,
+        ...extra.yaxis,
+      },
+    }
     : {}),
 });
 
@@ -395,9 +395,9 @@ const makeColSeries = (entity, name, color, statsPeriod, isYearly, unit = "") =>
   show: { datalabels: true },
   ...(isYearly
     ? {
-        group_by: { func: "last", duration: "1y" },
-        data_generator: yearlySumDataGen(entity),
-      }
+      group_by: { func: "last", duration: "1y" },
+      data_generator: yearlySumDataGen(entity),
+    }
     : { statistics: { type: "change", period: statsPeriod, align: "start" } }),
 });
 
@@ -415,14 +415,14 @@ const makeSeries = (entityBase, name, color, t, unit = "", allTimePeriod = "mont
     show: { datalabels: !isAllTime },
     ...(isYearly
       ? {
-          group_by: { func: "last", duration: "1y" },
-          data_generator: yearlyFinalDataGen(entity),
-        }
+        group_by: { func: "last", duration: "1y" },
+        data_generator: yearlyFinalDataGen(entity),
+      }
       : isAllTime
-      ? {
+        ? {
           statistics: { type: "state", period: allTimePeriod, align: "start" },
         }
-      : {
+        : {
           statistics: { type: "change", period: t.stats, align: "start" },
         }),
   };
@@ -938,34 +938,34 @@ const createSystemSubviewTab = (t, cfg, th, allTimeSpan = "10y", allTimePeriod =
   const dLabels = isAllTime
     ? false
     : isYearly
-    ? true
-    : `\${window.innerWidth < 600 ? parseInt(states['${t.sel}'].state) <= ${t.mCut || 0} : parseInt(states['${t.sel}'].state) <= ${t.dCut || 0}}`;
+      ? true
+      : `\${window.innerWidth < 600 ? parseInt(states['${t.sel}'].state) <= ${t.mCut || 0} : parseInt(states['${t.sel}'].state) <= ${t.dCut || 0}}`;
   const apexExtra = cfg.getApexConfig(dLabels, th[t.thKey]);
   const series = cfg.getSeries(t, allTimePeriod);
 
   const chartCard = isStaticSpan
     ? {
+      type: "custom:apexcharts-card",
+      ...(cfg.stacked ? { stacked: true } : {}),
+      graph_span: isAllTime ? allTimeSpan : "10y",
+      span: { end: isAllTime ? "day" : "year" },
+      header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
+      apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
+      series,
+    }
+    : {
+      type: "custom:config-template-card",
+      entities: [t.sel],
+      card: {
         type: "custom:apexcharts-card",
         ...(cfg.stacked ? { stacked: true } : {}),
-        graph_span: isAllTime ? allTimeSpan : "10y",
-        span: { end: isAllTime ? "day" : "year" },
-        header: { show: false, title: `${cfg.title} (${t.titleSuffix})` },
+        graph_span: `\${states['${t.sel}'].state + '${t.unit}'}`,
+        span: { end: "day" },
+        header: { show: false, title: cfg.title },
         apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
         series,
-      }
-    : {
-        type: "custom:config-template-card",
-        entities: [t.sel],
-        card: {
-          type: "custom:apexcharts-card",
-          ...(cfg.stacked ? { stacked: true } : {}),
-          graph_span: `\${states['${t.sel}'].state + '${t.unit}'}`,
-          span: { end: "day" },
-          header: { show: false, title: cfg.title },
-          apex_config: { ...baseApexConfig(cfg.title), ...apexExtra },
-          series,
-        },
-      };
+      },
+    };
 
   const cards = [
     subviewHeaderCard(`sensor.sbf2_${cfg.sensorKey}_rate_${t.suffix}`, cfg.title),
