@@ -1205,7 +1205,14 @@ class SbfTabsCard extends HTMLElement {
     this._config = config;
     this._key = config.pref_key || "tabs";
     this._mountId = 0;
-    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    if (!this.shadowRoot) {
+      this.attachShadow({ mode: "open" });
+      // A card whose element wasn't defined yet asks to be rebuilt once it is.
+      this.shadowRoot.addEventListener("ll-rebuild", (e) => {
+        e.stopPropagation();
+        this._mount();
+      });
+    }
     this._render();
   }
 
@@ -1431,6 +1438,7 @@ class SbfTabsCard extends HTMLElement {
     (config.series || []).forEach((sr) => sr.statistics?.period === "raw" && delete sr.statistics);
     try {
       const helpers = await window.loadCardHelpers();
+      await customCardsDefined(json);
       if (id !== this._mountId) return; // a newer selection took over
       const el = helpers.createCardElement(config);
       el.hass = this._hass;
@@ -1442,6 +1450,21 @@ class SbfTabsCard extends HTMLElement {
     }
   }
 }
+
+/**
+ * Waits (up to 10 s) until the custom cards used in a card config are defined. Right after
+ * an update the browser may load this script before e.g. apexcharts-card, and a card
+ * created too early would show a configuration error.
+ */
+const customCardsDefined = (configJson) => {
+  const tags = [...new Set([...configJson.matchAll(/"custom:([a-z0-9-]+)"/g)].map((m) => m[1]))];
+  const pending = tags.filter((tag) => !customElements.get(tag));
+  if (!pending.length) return Promise.resolve();
+  return Promise.race([
+    Promise.all(pending.map((tag) => customElements.whenDefined(tag))),
+    new Promise((resolve) => setTimeout(resolve, 10000)),
+  ]);
+};
 
 /** Money text with the minus sign before the symbol (−€0.30). */
 const formatMoney = (hass, v, maxDigits = 2) => {
@@ -1981,8 +2004,11 @@ const CARD_CSS = `
   .nav button[disabled] { opacity: 0.3; cursor: default; }
   .nav button.now { width: auto; padding: 0 10px; border-radius: 999px; font-size: 13px; color: var(--primary-color); }
   .plabel { min-width: 150px; text-align: center; font-weight: 600; font-size: 14px; }
-  #jump { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; right: 0; bottom: 0; }
-  #jump.shown { position: static; opacity: 1; pointer-events: auto; width: auto; height: auto; }
+  .pick { position: relative; display: inline-flex; }
+  /* The date input lies invisibly over the calendar button: tapping it opens the native
+     picker directly, which is the only reliable way on iOS. */
+  .pick #jump { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0;
+                opacity: 0; cursor: pointer; font-size: 16px; -webkit-appearance: none; appearance: none; }
   .range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
   input[type="date"] { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--divider-color);
                        background: var(--card-background-color); color: var(--primary-text-color); }
@@ -2277,8 +2303,10 @@ class SbfFinancialsCard extends HTMLElement {
           <button id="prev" aria-label="${tr("Previous period")}" ${this._atFirstPeriod() ? "disabled" : ""}>‹</button>
           <span class="plabel">${escapeHtml(this._periodLabel())}</span>
           <button id="next" aria-label="${tr("Next period")}" ${this._offset >= 0 ? "disabled" : ""}>›</button>
-          <button id="pick" aria-label="${tr("Pick a date")}" title="${tr("Pick a date")}"><ha-icon icon="mdi:calendar"></ha-icon></button>
-          <input type="date" id="jump" aria-label="Date" max="${today}">
+          <span class="pick" title="${tr("Pick a date")}">
+            <button id="pick" tabindex="-1" aria-hidden="true"><ha-icon icon="mdi:calendar"></ha-icon></button>
+            <input type="date" id="jump" aria-label="${tr("Pick a date")}" max="${today}">
+          </span>
           ${this._offset < 0 ? `<button id="now" class="now">${tr("Now")}</button>` : ""}
         </div>`;
     }
@@ -2559,21 +2587,25 @@ class SbfFinancialsCard extends HTMLElement {
         else if (el.id === "prev") this._set({ offset: this._offset - 1 });
         else if (el.id === "next") this._set({ offset: Math.min(0, this._offset + 1) });
         else if (el.id === "now") this._set({ offset: 0 });
-        else if (el.id === "pick") {
-          const input = root.getElementById("jump");
-          try {
-            input.showPicker();
-          } catch (e) {
-            input.classList.add("shown");
-            input.focus();
-          }
-        }
+
       },
+    });
+    // Desktop browsers only open the picker from its own icon, so open it on any click.
+    root.addEventListener("click", (e) => {
+      if (e.target.id !== "jump") return;
+      try {
+        e.target.showPicker();
+      } catch (err) {
+        // iOS opens it by itself; older browsers fall back to typing the date.
+      }
     });
     root.addEventListener("change", (e) => {
       const { id, value } = e.target;
       if (!value) return;
-      if (id === "jump") this._set({ offset: offsetFor(this._mode, new Date(`${value}T00:00:00`)) });
+      if (id === "jump") {
+        e.target.value = ""; // so picking the same date again still fires
+        this._set({ offset: offsetFor(this._mode, new Date(`${value}T00:00:00`)) });
+      }
       else if (id === "start" || id === "end") this._set({ custom: { ...this._custom, [id]: value } });
     });
   }

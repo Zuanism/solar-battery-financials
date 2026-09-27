@@ -286,6 +286,8 @@ For example, with 12 tracked devices and an inverter AC sensor the integration c
 
 Cumulative sensors store their full-precision total and the start-of-period baselines in Home Assistant's restore cache (`.storage/core.restore_state`). After a restart they continue exactly where they stopped, including anything integrated after the last state write. A period that rolled over while Home Assistant was down starts from zero.
 
+When no baselines were saved yet (after upgrading from a version that didn't store them), they are derived once from the sensor's long-term statistics, so `today` / `this_week` / `this_month` / `this_year` include everything recorded since the start of each period rather than only what happened since the upgrade.
+
 ### 5.4 Renaming, adding and removing devices
 
 - **Renaming** a tracked device changes its display name only. Sensors are identified by the tracked power sensor, so entity IDs and history stay.
@@ -433,7 +435,15 @@ tabs:
 
 ## 7. Upgrading and version history
 
-Migrations run automatically the first time a new version starts. **Upgrading directly from a version before 1.4.0 is not supported**; install 1.4.x first and start Home Assistant once, then upgrade.
+Migrations run automatically the first time a new version starts, including when upgrading from 1.2.x. Sensors that are no longer provided are removed from the entity registry; their long-term statistics are kept. Device sensors keep their entity IDs and history, but customisations made to them in the entity registry (a changed entity ID, name or icon) are not carried over from versions before 1.4.0.
+
+### 2.2.1: upgrade fixes
+
+- Period totals (`today`, `this_week`, `this_month`, `this_year`) are derived from long-term statistics when no saved baselines exist, instead of starting from zero at the moment of the upgrade.
+- All sensors that are no longer provided are removed from the entity registry, including the per-period sensors of versions before 1.3.0.
+- History pages wait until custom cards such as `apexcharts-card` are loaded before creating their charts, instead of showing a configuration error.
+- The date picker on the Financials tab opens on iOS.
+
 
 ### 2.2.0: money overview
 
@@ -536,7 +546,7 @@ Timers and the state subscription are cancelled when the entry unloads (`Financi
 - **Device registry identifiers:** `<prefix>system_financials`, `<prefix>house_untracked`, `<prefix>dev_financials_<source entity>`.
 - **Registry cleanup (every setup):** sensors of devices that are no longer tracked are removed.
 - **Config entry migration:** version 1 → 2 stores `invert_inverter_ac` explicitly and removes the retired helper selects and their device (`entry.async_migrate_entry`).
-- **Restore data** per cumulative sensor: `{"total": float, "baselines": {period: float}, "period_keys": {period: str}}`.
+- **Restore data** per cumulative sensor: `{"total": float, "baselines": {period: float}, "period_keys": {period: str}, "seeded": bool}`. `seeded` records that the baselines were checked against long-term statistics.
 
 ### 9.4 Dashboard script structure
 

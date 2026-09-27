@@ -8,7 +8,8 @@ Two entity types, both configured by descriptions (see sensor.py):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
@@ -26,6 +27,8 @@ from .const import DOMAIN, PERIOD_ATTRIBUTES
 
 if TYPE_CHECKING:
     from .manager import FinancialManager
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -157,6 +160,18 @@ class RateSensor(SbfSensorBase):
         }
 
 
+def _period_start(period: str, now: datetime) -> datetime:
+    """Start (local midnight) of the calendar period that `now` falls in."""
+    day = now.date()
+    if period == "this_week":
+        day -= timedelta(days=day.weekday())
+    elif period == "this_month":
+        day = day.replace(day=1)
+    elif period == "this_year":
+        day = day.replace(month=1, day=1)
+    return dt_util.start_of_local_day(day)
+
+
 def _period_key(period: str, now: datetime) -> str:
     """Identify the calendar period (in local time) that `now` falls in."""
     if period == "today":
@@ -210,6 +225,9 @@ class CumulativeSensor(SbfSensorBase, RestoreEntity):
         # Running total at the start of each current period, and which period that is.
         self._baselines: dict[str, float] = {}
         self._period_keys: dict[str, str] = {}
+        # Whether the baselines were checked against long-term statistics. Entries
+        # restored from before this existed (or from a fresh install) get checked once.
+        self._seeded = False
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -235,11 +253,47 @@ class CumulativeSensor(SbfSensorBase, RestoreEntity):
                 self._baselines[period] = self._state
             self._period_keys[period] = key
 
+        self._seeded = extra_data.get("seeded") is True
+        if not self._seeded:
+            self.hass.async_create_task(self._async_seed_baselines())
+
         self._previous_rate = self.manager.values[self._source_key]
         self.manager.listeners.append(self._integrate)
         self.manager.total_writers.append(self._write_if_changed)
         self.async_on_remove(lambda: self.manager.listeners.remove(self._integrate))
         self.async_on_remove(lambda: self.manager.total_writers.remove(self._write_if_changed))
+
+    async def _async_seed_baselines(self) -> None:
+        """Derive the period baselines from this sensor's long-term statistics.
+
+        Without saved baselines (after an upgrade, or on a first run) the current
+        periods would otherwise only count from the moment Home Assistant started.
+        """
+        try:
+            from homeassistant.components.recorder import get_instance
+            from homeassistant.components.recorder.statistics import statistic_during_period
+
+            now = dt_util.now()
+            changes = {}
+            for period in PERIOD_ATTRIBUTES:
+                result = await get_instance(self.hass).async_add_executor_job(
+                    statistic_during_period,
+                    self.hass,
+                    _period_start(period, now),
+                    None,
+                    self.entity_id,
+                    {"change"},
+                    None,
+                )
+                changes[period] = (result or {}).get("change")
+        except Exception as err:  # noqa: BLE001 - keep the restored baselines
+            _LOGGER.debug("Could not read statistics for %s: %s", self.entity_id, err)
+            return
+        for period, change in changes.items():
+            if isinstance(change, (int, float)):
+                self._baselines[period] = self._state - change
+        self._seeded = True
+        self.async_write_ha_state()
 
     @callback
     def _integrate(self, delta_hours: float) -> None:
@@ -277,5 +331,6 @@ class CumulativeSensor(SbfSensorBase, RestoreEntity):
                 "total": self._state,
                 "baselines": dict(self._baselines),
                 "period_keys": dict(self._period_keys),
+                "seeded": self._seeded,
             }
         )

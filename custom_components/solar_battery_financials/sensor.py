@@ -116,8 +116,6 @@ CUMULATIVE_SENSORS: tuple[CumulativeDef, ...] = (
 )
 
 # Totals that existed briefly during 2.2/2.3 development; removed from the registry on setup.
-RETIRED_TOTALS = ("grid_import_cost_rate", "solar_supply_value_rate", "battery_supply_value_rate")
-
 DEVICE_METRICS = (("cost_rate", "Cost", MONEY), ("energy_rate", "Energy", ENERGY))
 
 
@@ -179,7 +177,6 @@ async def async_setup_entry(
             )
         )
 
-    expected_device_ids: set[str] = set()
     for source in tracked_devices:
         name = device_names.get(source) or default_device_name(source)
         device = SbfDevice(f"{prefix}dev_financials_{safe_id(source)}", f"{name} Financials")
@@ -188,7 +185,6 @@ async def async_setup_entry(
             # Unique ID follows the source entity (rename-safe); the entity ID is only
             # suggested from the name when the sensor is first created.
             name_base = f"dev_{_slug(name)}_{kind}"
-            expected_device_ids.add(unique_id)
             sensors.append(
                 CumulativeSensor(
                     manager,
@@ -203,7 +199,7 @@ async def async_setup_entry(
                 )
             )
 
-    _cleanup_registry(registry, config_entry.entry_id, prefix, expected_device_ids)
+    _cleanup_registry(registry, config_entry.entry_id, {s.unique_id for s in sensors})
 
     async_add_entities(sensors)
     await manager.async_start()
@@ -214,15 +210,13 @@ def _device_class(unit: str) -> SensorDeviceClass:
     return SensorDeviceClass.ENERGY if unit == ENERGY else SensorDeviceClass.MONETARY
 
 
-def _cleanup_registry(
-    registry: er.EntityRegistry, entry_id: str, prefix: str, expected_device_ids: set[str]
-) -> None:
-    """Remove the sensors of devices that are no longer tracked, and retired sensors."""
-    retired = {f"{prefix}{key}_cumulative" for key in RETIRED_TOTALS}
+def _cleanup_registry(registry: er.EntityRegistry, entry_id: str, expected: set[str]) -> None:
+    """Remove this entry's sensors that are no longer created.
+
+    Covers devices that are no longer tracked, retired totals, and the per-period
+    sensors of versions before 1.3.0. Their statistics are kept.
+    """
     for entry in er.async_entries_for_config_entry(registry, entry_id):
-        uid = entry.unique_id
-        if entry.domain == "sensor" and (
-            uid in retired or (uid.startswith(f"{prefix}dev_") and uid not in expected_device_ids)
-        ):
-            _LOGGER.info("Removing sensor of untracked device: %s", entry.entity_id)
+        if entry.domain == "sensor" and entry.unique_id not in expected:
+            _LOGGER.info("Removing sensor that is no longer provided: %s", entry.entity_id)
             registry.async_remove(entry.entity_id)
