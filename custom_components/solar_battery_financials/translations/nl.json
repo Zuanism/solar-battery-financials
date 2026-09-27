@@ -3,62 +3,165 @@
     "step": {
       "user": {
         "title": "Solar & Battery Financials",
-        "description": "Please select the sensors for your system.",
-        "data": {
-          "grid_sensor": "Grid Power Sensor (W)",
-          "solar_sensor": "Solar Power Sensor (W) (Optional)",
-          "battery_sensor": "Battery Power Sensor (W) (Optional)",
-          "price_sensor": "Import Energy Price Sensor (EUR/kWh)",
-          "export_price_sensor": "Export Energy Price Sensor (EUR/kWh) (Optional)",
-          "feed_in_penalty": "Export Price Offset / Feed-In Penalty (EUR/kWh) (Optional)",
-          "feed_in_penalty_percent": "Export Price Percentage Deduction (%) (Optional)",
-          "prefix": "Entity ID Prefix (e.g. sbf_) (Optional)",
-          "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
-          "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
+        "description": "Kies de sensoren van je systeem. Vermogenssensoren moeten W of kW rapporteren.",
+        "sections": {
+          "grid": {
+            "name": "Net & prijzen",
+            "data": {
+              "grid_sensor": "Netvermogen",
+              "price_sensor": "Afnameprijs",
+              "export_price_sensor": "Terugleverprijs"
+            },
+            "data_description": {
+              "grid_sensor": "Positief bij afname van het net, negatief bij teruglevering.",
+              "price_sensor": "Wat je nu per kWh betaalt (bijv. een Nordpool- of Tibber-prijssensor).",
+              "export_price_sensor": "Wat je per teruggeleverde kWh ontvangt. Leeg laten om de afnameprijs te gebruiken."
+            }
+          },
+          "system": {
+            "name": "Zon, batterij & omvormer",
+            "description": "Laat weg wat je niet hebt.",
+            "data": {
+              "solar_sensor": "Zonnevermogen",
+              "battery_sensor": "Batterijvermogen",
+              "inverter_ac_sensor": "AC-vermogen omvormer",
+              "invert_inverter_ac": "AC-sensor omvormer omkeren"
+            },
+            "data_description": {
+              "solar_sensor": "DC-vermogen van de panelen; positief tijdens opwek.",
+              "battery_sensor": "Positief bij ontladen naar het huis, negatief bij laden.",
+              "inverter_ac_sensor": "AC-vermogen aan de uitgang van de omvormer. Maakt gemeten rendement en exacte verliezen mogelijk; zonder deze sensor wordt 96 % rendement aangenomen.",
+              "invert_inverter_ac": "Inschakelen als de omvormersensor negatief is terwijl hij het huis voedt (bijv. Deye)."
+            }
+          },
+          "export": {
+            "name": "Correcties terugleverprijs",
+            "description": "Effectieve terugleverprijs = terugleverprijs × (1 − percentage / 100) − vast bedrag. Negatieve waarden werken als bonus.",
+            "data": {
+              "feed_in_penalty": "Vaste aftrek",
+              "feed_in_penalty_percent": "Procentuele aftrek"
+            },
+            "data_description": {
+              "feed_in_penalty": "Bedrag per kWh dat van de terugleverprijs wordt afgetrokken.",
+              "feed_in_penalty_percent": "Percentage dat van de terugleverprijs wordt afgetrokken, bijv. 20 als je 80 % krijgt."
+            }
+          },
+          "devices": {
+            "name": "Apparaten",
+            "data": {
+              "tracked_devices": "Te volgen apparaten"
+            },
+            "data_description": {
+              "tracked_devices": "Vermogenssensoren van apparaten of groepen (slimme stekkers, tussenmeters). Optioneel."
+            }
+          },
+          "advanced": {
+            "name": "Geavanceerd",
+            "data": {
+              "prefix": "Voorvoegsel entity-ID"
+            },
+            "data_description": {
+              "prefix": "Komt voor elke entity-ID van deze integratie. Kan later niet worden gewijzigd."
+            }
+          }
         }
       },
       "device_names": {
-        "title": "Name Your Devices",
-        "description": "Please provide friendly names for the devices you selected."
+        "title": "Geef je apparaten een naam",
+        "description": "Namen voor sensoren en het dashboard. Later hernoemen behoudt entity-ID's en geschiedenis."
       },
-      "sub_devices": {
-        "title": "Identify Sub-Devices",
-        "description": "Select any devices that are plugged into another tracked device. This prevents Double Counting in your Untracked House total.",
-        "data": {
-          "sub_devices": "Sub-Devices (Optional)"
-        }
+      "device_parents": {
+        "title": "Apparaathiërarchie",
+        "description": "Wordt een apparaat al gemeten door een ander apparaat, zoals een vaatwasserstekker achter een tussenmeter van de keuken? Dan is het een subapparaat: het krijgt eigen kosten, maar telt niet dubbel mee in het niet-gevolgde totaal."
       }
+    },
+    "error": {
+      "unsupported_unit": "{sensor} rapporteert vermogen in {unit}. Gebruik een sensor die W of kW rapporteert.",
+      "inverter_sign": "De AC-sensor van de omvormer heeft het verkeerde teken voor deze instelling terwijl de panelen opwekken. Zet 'AC-sensor omvormer omkeren' om.",
+      "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn."
+    },
+    "abort": {
+      "single_instance_allowed": "Solar & Battery Financials is al ingesteld."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Solar & Battery Financials Options",
-        "description": "Configure sensors and parameters for your system.",
+        "title": "Solar & Battery Financials",
+        "menu_options": {
+          "sensors": "Sensoren",
+          "export": "Correcties terugleverprijs",
+          "devices": "Apparaten"
+        }
+      },
+      "sensors": {
+        "title": "Sensoren",
+        "sections": {
+          "grid": {
+            "name": "Net & prijzen",
+            "data": {
+              "grid_sensor": "Netvermogen",
+              "price_sensor": "Afnameprijs",
+              "export_price_sensor": "Terugleverprijs"
+            },
+            "data_description": {
+              "grid_sensor": "Positief bij afname van het net, negatief bij teruglevering.",
+              "price_sensor": "Wat je nu per kWh betaalt (bijv. een Nordpool- of Tibber-prijssensor).",
+              "export_price_sensor": "Wat je per teruggeleverde kWh ontvangt. Leeg laten om de afnameprijs te gebruiken."
+            }
+          },
+          "system": {
+            "name": "Zon, batterij & omvormer",
+            "description": "Laat weg wat je niet hebt.",
+            "data": {
+              "solar_sensor": "Zonnevermogen",
+              "battery_sensor": "Batterijvermogen",
+              "inverter_ac_sensor": "AC-vermogen omvormer",
+              "invert_inverter_ac": "AC-sensor omvormer omkeren"
+            },
+            "data_description": {
+              "solar_sensor": "DC-vermogen van de panelen; positief tijdens opwek.",
+              "battery_sensor": "Positief bij ontladen naar het huis, negatief bij laden.",
+              "inverter_ac_sensor": "AC-vermogen aan de uitgang van de omvormer. Maakt gemeten rendement en exacte verliezen mogelijk; zonder deze sensor wordt 96 % rendement aangenomen.",
+              "invert_inverter_ac": "Inschakelen als de omvormersensor negatief is terwijl hij het huis voedt (bijv. Deye)."
+            }
+          }
+        }
+      },
+      "export": {
+        "title": "Correcties terugleverprijs",
+        "description": "Effectieve terugleverprijs = terugleverprijs × (1 − percentage / 100) − vast bedrag. Negatieve waarden werken als bonus.",
         "data": {
-          "grid_sensor": "Grid Power Sensor (W)",
-          "solar_sensor": "Solar Power Sensor (W) (Optional)",
-          "battery_sensor": "Battery Power Sensor (W) (Optional)",
-          "price_sensor": "Import Energy Price Sensor (EUR/kWh)",
-          "export_price_sensor": "Export Energy Price Sensor (EUR/kWh) (Optional)",
-          "feed_in_penalty": "Export Price Offset / Feed-In Penalty (EUR/kWh) (Optional)",
-          "feed_in_penalty_percent": "Export Price Percentage Deduction (%) (Optional)",
-          "prefix": "Entity ID Prefix (e.g. sbf_) (Optional)",
-          "inverter_ac_sensor": "Inverter AC Sensor (W) (Optional)",
-          "tracked_devices": "Devices to Track (Power Sensors in W) (Optional)"
+          "feed_in_penalty": "Vaste aftrek",
+          "feed_in_penalty_percent": "Procentuele aftrek"
+        },
+        "data_description": {
+          "feed_in_penalty": "Bedrag per kWh dat van de terugleverprijs wordt afgetrokken.",
+          "feed_in_penalty_percent": "Percentage dat van de terugleverprijs wordt afgetrokken, bijv. 20 als je 80 % krijgt."
+        }
+      },
+      "devices": {
+        "title": "Apparaten",
+        "data": {
+          "tracked_devices": "Te volgen apparaten"
+        },
+        "data_description": {
+          "tracked_devices": "Vermogenssensoren van apparaten of groepen (slimme stekkers, tussenmeters). Optioneel."
         }
       },
       "device_names": {
-        "title": "Name Your Devices",
-        "description": "Please provide friendly names for the devices you selected."
+        "title": "Geef je apparaten een naam",
+        "description": "Namen voor sensoren en het dashboard. Later hernoemen behoudt entity-ID's en geschiedenis."
       },
-      "sub_devices": {
-        "title": "Identify Sub-Devices",
-        "description": "Select any devices that are plugged into another tracked device. This prevents Double Counting in your Untracked House total.",
-        "data": {
-          "sub_devices": "Sub-Devices (Optional)"
-        }
+      "device_parents": {
+        "title": "Apparaathiërarchie",
+        "description": "Wordt een apparaat al gemeten door een ander apparaat, zoals een vaatwasserstekker achter een tussenmeter van de keuken? Dan is het een subapparaat: het krijgt eigen kosten, maar telt niet dubbel mee in het niet-gevolgde totaal."
       }
+    },
+    "error": {
+      "unsupported_unit": "{sensor} rapporteert vermogen in {unit}. Gebruik een sensor die W of kW rapporteert.",
+      "inverter_sign": "De AC-sensor van de omvormer heeft het verkeerde teken voor deze instelling terwijl de panelen opwekken. Zet 'AC-sensor omvormer omkeren' om.",
+      "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn."
     }
   }
 }

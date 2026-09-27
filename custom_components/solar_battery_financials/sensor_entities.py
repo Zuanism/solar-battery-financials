@@ -1,423 +1,281 @@
 """Sensor entities for Solar & Battery Financials.
 
-Defines the base sensor types (ManagedSensor, CumulativeSensor, PeriodSensor)
-and specialized rate/earnings sensor classes.
+Two entity types, both configured by descriptions (see sensor.py):
+- RateSensor: an instantaneous value from FinancialManager (power, cost rates).
+- CumulativeSensor: the running total (integral) of a rate, with today / this
+  week / this month / this year exposed as unrecorded attributes.
 """
 from __future__ import annotations
 
-import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
+    SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.core import callback
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.restore_state import RestoredExtraData, RestoreEntity
 import homeassistant.util.dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, PERIOD_ATTRIBUTES
 
 if TYPE_CHECKING:
     from .manager import FinancialManager
 
-_LOGGER = logging.getLogger(__name__)
+
+@dataclass(frozen=True, kw_only=True)
+class SbfSensorDescription(SensorEntityDescription):
+    """Describes a sensor. `key` is the FinancialManager.values key it reads.
+
+    `unit` may contain "{currency}", filled in from the Home Assistant config.
+    """
+
+    unit: str
+    group: str  # device group: "system" or "house"
+    expose_config: bool = False  # add the integration's config as attributes
+    precision: int = 4  # decimals kept; fewer decimals means fewer recorded changes
+    requires_inverter_ac: bool = False  # only meaningful with an inverter AC sensor
+
+
+@dataclass(frozen=True)
+class SbfDevice:
+    """Device an entity is grouped under."""
+
+    identifier: str
+    name: str
+
+    @property
+    def info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.identifier)},
+            name=self.name,
+            manufacturer="Solar & Battery Financials",
+        )
 
 
 class SbfSensorBase(SensorEntity):
-    """Shared base for all Solar & Battery Financials sensors."""
+    """Shared setup: naming, IDs, device, unit and change-only writes."""
+
+    _attr_should_poll = False
 
     def __init__(
         self,
         manager: FinancialManager,
-        prefix: str,
+        *,
         name: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
+        unique_id: str,
+        entity_id: str,
+        unit: str,
+        device: SbfDevice,
         source_entity: str | None = None,
     ) -> None:
         self.manager = manager
-        self._prefix = prefix
         self._attr_name = name
-        self._device_id_suffix = device_id_suffix
-        self._device_name = device_name
+        self._attr_unique_id = unique_id
+        self.entity_id = entity_id
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_info = device.info
         self._source_entity = source_entity
-
-    @property
-    def device_info(self) -> dict[str, Any] | None:
-        if self._device_id_suffix and self._device_name:
-            return {
-                "identifiers": {(DOMAIN, self._device_id_suffix)},
-                "name": self._device_name,
-                "manufacturer": "Solar & Battery Financials",
-            }
-        return None
+        self._last_written: Any = None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attrs: dict[str, Any] = {}
-        if self._source_entity:
-            attrs["source_entity_id"] = self._source_entity
-        return attrs
+        return {"source_entity_id": self._source_entity} if self._source_entity else {}
 
-
-class ManagedSensor(SbfSensorBase):
-    """Sensor that reflects an instantaneous value from FinancialManager."""
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        name: str,
-        key: str,
-        unit: str,
-        device_class: SensorDeviceClass | None = None,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-        source_entity: str | None = None,
-    ) -> None:
-        super().__init__(manager, prefix, name, device_id_suffix, device_name, source_entity)
-        self._attr_unique_id = f"{prefix}{key}"
-        self.entity_id = f"sensor.{prefix}{key}"
-        self._attr_native_unit_of_measurement = unit
-        self._key = key
-        if device_class:
-            self._attr_device_class = device_class
-        self._last_written_value: float | None = None
-
-    async def async_added_to_hass(self) -> None:
-        self.manager.listeners.append(self._handle_update)
+    def _snapshot(self) -> Any:
+        """What must change for a write to be worth recording."""
+        return self.native_value
 
     @callback
-    def _handle_update(self, delta_hours: float) -> None:
-        new_val = self.native_value
-        if self._last_written_value != new_val:
-            self._last_written_value = new_val
+    def _write_if_changed(self) -> None:
+        snapshot = self._snapshot()
+        if snapshot != self._last_written:
+            self._last_written = snapshot
             self.async_write_ha_state()
 
-    @property
-    def native_value(self) -> float:
-        return round(self.manager.values[self._key], 4)
 
+class RateSensor(SbfSensorBase):
+    """Instantaneous value from FinancialManager, written on the rate timer."""
 
-class TotalPowerSensor(ManagedSensor):
-    """Instantaneous total household power consumption."""
+    entity_description: SbfSensorDescription
 
     def __init__(
         self,
         manager: FinancialManager,
+        description: SbfSensorDescription,
         prefix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
+        device: SbfDevice,
+        currency: str,
     ) -> None:
         super().__init__(
             manager,
-            prefix,
-            "Total Power Consumption",
-            "total_power_consumption",
-            "W",
-            SensorDeviceClass.POWER,
-            device_id_suffix,
-            device_name,
+            name=str(description.name),
+            unique_id=f"{prefix}{description.key}",
+            entity_id=f"sensor.{prefix}{description.key}",
+            unit=description.unit.format(currency=currency),
+            device=device,
         )
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self.entity_description = description
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.manager.rate_writers.append(self._write_if_changed)
+        self.async_on_remove(lambda: self.manager.rate_writers.remove(self._write_if_changed))
+
+    @property
+    def available(self) -> bool:
+        return not self.manager.paused
+
+    def _snapshot(self) -> Any:
+        return (self.native_value, self.available)
+
+    @property
+    def native_value(self) -> float:
+        desc = self.entity_description
+        return round(self.manager.values[desc.key], desc.precision)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        if not self.entity_description.expose_config:
+            return {}
+        m = self.manager
         return {
-            "tracked_devices": self.manager.tracked_devices,
-            "device_names": self.manager.device_names,
-            "sub_devices": self.manager.sub_devices,
-            "grid_sensor": self.manager.grid_id,
-            "solar_sensor": self.manager.solar_id,
-            "battery_sensor": self.manager.battery_id,
-            "price_sensor": self.manager.price_id,
-            "export_price_sensor": self.manager.export_price_id,
+            "tracked_devices": m.tracked_devices,
+            "device_names": m.device_names,
+            "sub_devices": m.sub_devices,
+            "device_parents": m.device_parents,
+            "grid_sensor": m.grid_id,
+            "solar_sensor": m.solar_id,
+            "battery_sensor": m.battery_id,
+            "price_sensor": m.price_id,
+            "export_price_sensor": m.export_price_id,
         }
 
 
-class TotalCostRateSensor(ManagedSensor):
-    """Instantaneous total gross cost rate (EUR/h)."""
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-    ) -> None:
-        super().__init__(
-            manager,
-            prefix,
-            "Total Cost Rate",
-            "total_cost_rate",
-            "EUR/h",
-            None,
-            device_id_suffix,
-            device_name,
-        )
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-
-class NetGridCostRateSensor(ManagedSensor):
-    """Instantaneous net grid cost rate (EUR/h)."""
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-    ) -> None:
-        super().__init__(
-            manager,
-            prefix,
-            "Net Grid Cost Rate",
-            "net_grid_cost_rate",
-            "EUR/h",
-            None,
-            device_id_suffix,
-            device_name,
-        )
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-
-class SystemEarningsRateSensor(ManagedSensor):
-    """Instantaneous system earnings rate (EUR/h)."""
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-    ) -> None:
-        super().__init__(
-            manager,
-            prefix,
-            "System Earnings Rate",
-            "system_earnings_rate",
-            "EUR/h",
-            None,
-            device_id_suffix,
-            device_name,
-        )
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-
-class SolarOnlyEarningsRateSensor(ManagedSensor):
-    """Instantaneous savings rate (EUR/h) attributable strictly to Solar PV.
-
-    Formula:
-        Gross Cost Rate - Simulated Net Cost Rate (with Solar only, no Battery)
-    """
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-    ) -> None:
-        super().__init__(
-            manager,
-            prefix,
-            "Solar Only Earnings Rate",
-            "solar_only_earnings_rate",
-            "EUR/h",
-            None,
-            device_id_suffix,
-            device_name,
-        )
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-
-class BatteryAddedValueRateSensor(ManagedSensor):
-    """Instantaneous savings rate (EUR/h) added specifically by the Battery.
-
-    Formula:
-        Total System Earnings Rate - Solar Only Earnings Rate
-    """
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-    ) -> None:
-        super().__init__(
-            manager,
-            prefix,
-            "Battery Added Value Rate",
-            "battery_added_value_rate",
-            "EUR/h",
-            None,
-            device_id_suffix,
-            device_name,
-        )
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+def _period_key(period: str, now: datetime) -> str:
+    """Identify the calendar period (in local time) that `now` falls in."""
+    if period == "today":
+        return now.date().isoformat()
+    if period == "this_week":
+        year, week, _ = now.isocalendar()
+        return f"{year}-W{week:02d}"
+    if period == "this_month":
+        return f"{now.year}-{now.month:02d}"
+    return str(now.year)
 
 
 class CumulativeSensor(SbfSensorBase, RestoreEntity):
-    """Restorable running cumulative integral of an instantaneous rate sensor."""
+    """Running total (integral) of a rate from FinancialManager.
+
+    Integrates on every recalculation but writes on the manager's total timer.
+    The period attributes are excluded from the recorder (they are derivable
+    from this sensor's long-term statistics) and survive restarts through the
+    restore-state cache, together with the full-precision total.
+    """
+
+    _attr_state_class = SensorStateClass.TOTAL
+    _unrecorded_attributes = frozenset(PERIOD_ATTRIBUTES)
 
     def __init__(
         self,
         manager: FinancialManager,
-        prefix: str,
+        *,
         name: str,
         source_key: str,
+        unique_id: str,
+        entity_id: str,
         unit: str,
-        device_class: SensorDeviceClass = SensorDeviceClass.MONETARY,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-        entity_id_base: str | None = None,
+        device_class: SensorDeviceClass,
+        device: SbfDevice,
         source_entity: str | None = None,
     ) -> None:
-        super().__init__(manager, prefix, name, device_id_suffix, device_name, source_entity)
-        base = entity_id_base if entity_id_base else source_key
-        self._attr_unique_id = f"{prefix}{base}_cumulative"
-        self.entity_id = f"sensor.{prefix}{base}_cumulative"
-        self._attr_native_unit_of_measurement = unit
-        self._attr_state_class = SensorStateClass.TOTAL
+        super().__init__(
+            manager,
+            name=name,
+            unique_id=unique_id,
+            entity_id=entity_id,
+            unit=unit,
+            device=device,
+            source_entity=source_entity,
+        )
         self._attr_device_class = device_class
         self._source_key = source_key
         self._state = 0.0
         self._previous_rate = 0.0
-        self._last_written_value: float | None = None
+        # Running total at the start of each current period, and which period that is.
+        self._baselines: dict[str, float] = {}
+        self._period_keys: dict[str, str] = {}
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        state = await self.async_get_last_state()
-        if state and state.state not in ("unknown", "unavailable"):
+        extra = await self.async_get_last_extra_data()
+        extra_data = extra.as_dict() if extra else {}
+
+        if isinstance(extra_data.get("total"), (int, float)):
+            self._state = float(extra_data["total"])
+        elif (state := await self.async_get_last_state()) is not None:
             try:
                 self._state = float(state.state)
             except ValueError:
                 pass
-        self.manager.listeners.append(self._handle_update)
+
+        now = dt_util.now()
+        saved_baselines = extra_data.get("baselines") or {}
+        saved_keys = extra_data.get("period_keys") or {}
+        for period in PERIOD_ATTRIBUTES:
+            key = _period_key(period, now)
+            if saved_keys.get(period) == key and isinstance(saved_baselines.get(period), (int, float)):
+                self._baselines[period] = float(saved_baselines[period])
+            else:  # new sensor, or the period rolled over while Home Assistant was down
+                self._baselines[period] = self._state
+            self._period_keys[period] = key
+
         self._previous_rate = self.manager.values[self._source_key]
+        self.manager.listeners.append(self._integrate)
+        self.manager.total_writers.append(self._write_if_changed)
+        self.async_on_remove(lambda: self.manager.listeners.remove(self._integrate))
+        self.async_on_remove(lambda: self.manager.total_writers.remove(self._write_if_changed))
 
     @callback
-    def _handle_update(self, delta_hours: float) -> None:
+    def _integrate(self, delta_hours: float) -> None:
         if delta_hours > 0:
-            added = self._previous_rate * delta_hours
-            self._state += added
-
+            self._state += self._previous_rate * delta_hours
         self._previous_rate = self.manager.values[self._source_key]
-        
-        new_val = self.native_value
-        if self._last_written_value != new_val:
-            self._last_written_value = new_val
-            self.async_write_ha_state()
+        now = dt_util.now()
+        for period in PERIOD_ATTRIBUTES:
+            key = _period_key(period, now)
+            if self._period_keys.get(period) != key:
+                self._period_keys[period] = key
+                self._baselines[period] = self._state
+
+    def _period_values(self) -> dict[str, float]:
+        return {
+            period: round(self._state - self._baselines.get(period, self._state), 4)
+            for period in PERIOD_ATTRIBUTES
+        }
+
+    def _snapshot(self) -> Any:
+        return (self.native_value, tuple(self._period_values().values()))
 
     @property
     def native_value(self) -> float:
         return round(self._state, 4)
-
-
-class PeriodSensor(SbfSensorBase, RestoreEntity):
-    """Restorable periodic (daily, weekly, monthly, yearly) integral sensor with auto-reset."""
-
-    def __init__(
-        self,
-        manager: FinancialManager,
-        prefix: str,
-        name: str,
-        source_key: str,
-        unit: str,
-        period: str,
-        device_class: SensorDeviceClass = SensorDeviceClass.MONETARY,
-        device_id_suffix: str | None = None,
-        device_name: str | None = None,
-        entity_id_base: str | None = None,
-        source_entity: str | None = None,
-    ) -> None:
-        super().__init__(manager, prefix, name, device_id_suffix, device_name, source_entity)
-        base = entity_id_base if entity_id_base else source_key
-        self._attr_unique_id = f"{prefix}{base}_{period}"
-        self.entity_id = f"sensor.{prefix}{base}_{period}"
-        self._attr_native_unit_of_measurement = unit
-        self._attr_state_class = SensorStateClass.TOTAL
-        self._attr_device_class = device_class
-        self._period = period
-        self._source_key = source_key
-        self._state = 0.0
-        self._previous_rate = 0.0
-        self._last_reset = None
-        self._last_written_value: float | None = None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attrs = super().extra_state_attributes
-        attrs["internal_last_reset"] = self._last_reset.isoformat() if self._last_reset else None
-        return attrs
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        state = await self.async_get_last_state()
-        if state and state.state not in ("unknown", "unavailable"):
-            try:
-                self._state = float(state.state)
-            except ValueError:
-                pass
-
-            if "internal_last_reset" in state.attributes and state.attributes["internal_last_reset"]:
-                try:
-                    self._last_reset = dt_util.parse_datetime(state.attributes["internal_last_reset"])
-                except Exception:
-                    pass
-
-        if not self._last_reset:
-            self._last_reset = dt_util.now()
-
-        self.manager.listeners.append(self._handle_update)
-        self._previous_rate = self.manager.values[self._source_key]
-
-    def _check_reset(self, now: Any) -> bool:
-        if not self._last_reset:
-            self._last_reset = now
-            return False
-
-        reset = False
-        if self._period == "daily":
-            if now.date() != self._last_reset.date():
-                reset = True
-        elif self._period == "weekly":
-            if now.isocalendar()[:2] != self._last_reset.isocalendar()[:2]:
-                reset = True
-        elif self._period == "monthly":
-            if now.month != self._last_reset.month or now.year != self._last_reset.year:
-                reset = True
-        elif self._period == "yearly":
-            if now.year != self._last_reset.year:
-                reset = True
-
-        if reset:
-            self._state = 0.0
-            self._last_reset = now
-            return True
-        return False
-
-    @callback
-    def _handle_update(self, delta_hours: float) -> None:
-        now = dt_util.now()
-        reset_occurred = self._check_reset(now)
-        if reset_occurred:
-            self._attr_last_reset = now
-
-        if delta_hours > 0:
-            added = self._previous_rate * delta_hours
-            self._state += added
-
-        self._previous_rate = self.manager.values[self._source_key]
-        
-        new_val = self.native_value
-        if reset_occurred or self._last_written_value != new_val:
-            self._last_written_value = new_val
-            self.async_write_ha_state()
+        return {**super().extra_state_attributes, **self._period_values()}
 
     @property
-    def native_value(self) -> float:
-        return round(self._state, 4)
+    def extra_restore_state_data(self) -> RestoredExtraData:
+        return RestoredExtraData(
+            {
+                "total": self._state,
+                "baselines": dict(self._baselines),
+                "period_keys": dict(self._period_keys),
+            }
+        )

@@ -1,15 +1,16 @@
 """Sensor platform setup for Solar & Battery Financials.
 
-Orchestrates creation of rate, cumulative, periodic, house, and device sensors,
-and manages registry cleanup for removed devices.
+Entities are declared as data (RATE_SENSORS, CUMULATIVE_SENSORS, plus two
+cumulative sensors per tracked device). Sensors of devices that are no longer
+tracked are removed from the entity registry on setup.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import re
-from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -17,32 +18,111 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_BATTERY_SENSOR,
+    CONF_DEVICE_NAMES,
+    CONF_DEVICE_PARENTS,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
     CONF_GRID_SENSOR,
     CONF_INVERTER_AC_SENSOR,
+    CONF_INVERT_INVERTER_AC,
     CONF_PREFIX,
     CONF_PRICE_SENSOR,
     CONF_SOLAR_SENSOR,
+    CONF_SUB_DEVICES,
     CONF_TRACKED_DEVICES,
+    DEFAULT_INVERT_INVERTER_AC,
+    DEFAULT_PREFIX,
+    default_device_name,
+    device_key,
+    safe_id,
 )
 from .manager import FinancialManager
 from .sensor_entities import (
-    BatteryAddedValueRateSensor,
     CumulativeSensor,
-    ManagedSensor,
-    NetGridCostRateSensor,
-    PeriodSensor,
-    SolarOnlyEarningsRateSensor,
-    SystemEarningsRateSensor,
-    TotalCostRateSensor,
-    TotalPowerSensor,
+    RateSensor,
+    SbfDevice,
+    SbfSensorDescription,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-PERIODS = ["daily", "weekly", "monthly", "yearly"]
+MONEY = "{currency}"
+ENERGY = "kWh"
+
+RATE_SENSORS: tuple[SbfSensorDescription, ...] = (
+    SbfSensorDescription(
+        key="total_power_consumption", name="Total Power Consumption", unit="W",
+        device_class=SensorDeviceClass.POWER, state_class=SensorStateClass.MEASUREMENT,
+        group="system", expose_config=True,
+    ),
+    SbfSensorDescription(
+        key="total_cost_rate", name="Total Cost Rate", unit="{currency}/h",
+        state_class=SensorStateClass.MEASUREMENT, group="system",
+    ),
+    SbfSensorDescription(
+        key="system_earnings_rate", name="System Earnings Rate", unit="{currency}/h",
+        state_class=SensorStateClass.MEASUREMENT, group="system",
+    ),
+    SbfSensorDescription(
+        key="solar_only_earnings_rate", name="Solar Only Earnings Rate", unit="{currency}/h",
+        state_class=SensorStateClass.MEASUREMENT, group="system",
+    ),
+    SbfSensorDescription(
+        key="battery_added_value_rate", name="Battery Added Value Rate", unit="{currency}/h",
+        state_class=SensorStateClass.MEASUREMENT, group="system",
+    ),
+    SbfSensorDescription(
+        key="net_grid_cost_rate", name="Net Grid Cost Rate", unit="{currency}/h",
+        state_class=SensorStateClass.MEASUREMENT, group="house",
+    ),
+    SbfSensorDescription(
+        key="effective_price", name="Effective Price", unit="{currency}/kWh", group="house",
+    ),
+    SbfSensorDescription(
+        key="untracked_power", name="Untracked Power", unit="W",
+        device_class=SensorDeviceClass.POWER, state_class=SensorStateClass.MEASUREMENT,
+        group="house",
+    ),
+    SbfSensorDescription(
+        key="inverter_efficiency", name="Inverter Efficiency", unit="%",
+        state_class=SensorStateClass.MEASUREMENT, group="system",
+        icon="mdi:sine-wave", precision=1, requires_inverter_ac=True,
+    ),
+)
+
+
+@dataclass(frozen=True)
+class CumulativeDef:
+    """A system-level cumulative sensor: the integral of manager value `source_key`."""
+
+    source_key: str
+    name: str
+    unit: str
+    group: str
+
+
+CUMULATIVE_SENSORS: tuple[CumulativeDef, ...] = (
+    CumulativeDef("system_earnings_rate", "System Earnings Cumulative", MONEY, "system"),
+    CumulativeDef("solar_only_earnings_rate", "Solar Only Earnings Cumulative", MONEY, "system"),
+    CumulativeDef("battery_added_value_rate", "Battery Added Value Cumulative", MONEY, "system"),
+    CumulativeDef("inverter_loss_cost_rate", "Inverter Losses Cost Cumulative", MONEY, "system"),
+    CumulativeDef("net_grid_cost_rate", "Net Grid Cost Cumulative", MONEY, "house"),
+    CumulativeDef("net_grid_energy_rate", "Net Grid Energy Cumulative", ENERGY, "house"),
+    CumulativeDef("total_system_cost_rate", "Total System Cost Cumulative", MONEY, "house"),
+    CumulativeDef("total_system_energy_rate", "Total System Energy Cumulative", ENERGY, "house"),
+    CumulativeDef("untracked_cost_rate", "Untracked Cost Cumulative", MONEY, "house"),
+    CumulativeDef("untracked_energy_rate", "Untracked Energy Cumulative", ENERGY, "house"),
+)
+
+# Totals that existed briefly during 2.2/2.3 development; removed from the registry on setup.
+RETIRED_TOTALS = ("grid_import_cost_rate", "solar_supply_value_rate", "battery_supply_value_rate")
+
+DEVICE_METRICS = (("cost_rate", "Cost", MONEY), ("energy_rate", "Energy", ENERGY))
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
 
 async def async_setup_entry(
@@ -52,289 +132,97 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Solar & Battery Financials sensors."""
     config = {**config_entry.data, **config_entry.options}
-
-    grid_sensor = config[CONF_GRID_SENSOR]
-    solar_sensor = config.get(CONF_SOLAR_SENSOR)
-    battery_sensor = config.get(CONF_BATTERY_SENSOR)
-    price_sensor = config[CONF_PRICE_SENSOR]
-    export_price_sensor = config.get(CONF_EXPORT_PRICE_SENSOR)
-    penalty = config.get(CONF_FEED_IN_PENALTY, 0.0)
-    penalty_pct = config.get(CONF_FEED_IN_PENALTY_PERCENT, 0.0)
-    prefix = config.get(CONF_PREFIX, "sbf_")
-    inverter_ac_sensor = config.get(CONF_INVERTER_AC_SENSOR)
-    tracked_devices = config.get(CONF_TRACKED_DEVICES, [])
-    device_names = config.get("device_names", {})
-    sub_devices = config.get("sub_devices", [])
+    prefix = config.get(CONF_PREFIX, DEFAULT_PREFIX)
+    tracked_devices: list[str] = config.get(CONF_TRACKED_DEVICES, [])
+    device_names: dict[str, str] = config.get(CONF_DEVICE_NAMES, {})
+    currency = hass.config.currency
 
     manager = FinancialManager(
         hass,
-        grid_sensor,
-        solar_sensor,
-        battery_sensor,
-        price_sensor,
-        export_price_sensor,
-        penalty,
-        penalty_pct,
-        inverter_ac_sensor,
+        config[CONF_GRID_SENSOR],
+        config.get(CONF_SOLAR_SENSOR),
+        config.get(CONF_BATTERY_SENSOR),
+        config[CONF_PRICE_SENSOR],
+        config.get(CONF_EXPORT_PRICE_SENSOR),
+        config.get(CONF_FEED_IN_PENALTY, 0.0),
+        config.get(CONF_FEED_IN_PENALTY_PERCENT, 0.0),
+        config.get(CONF_INVERTER_AC_SENSOR),
+        config.get(CONF_INVERT_INVERTER_AC, DEFAULT_INVERT_INVERTER_AC),
         tracked_devices,
-        sub_devices,
+        config.get(CONF_SUB_DEVICES, []),
         device_names,
     )
 
-    sys_id = f"{prefix}system_financials"
-    sys_name = "System Financials"
-    house_id = f"{prefix}house_untracked"
-    house_name = "House & Untracked"
+    manager.device_parents = config.get(CONF_DEVICE_PARENTS) or {}
+    registry = er.async_get(hass)
+    devices = {
+        "system": SbfDevice(f"{prefix}system_financials", "System Financials"),
+        "house": SbfDevice(f"{prefix}house_untracked", "House & Untracked"),
+    }
 
-    sensors: list[SensorEntity] = []
-    sensors.extend(_create_rate_sensors(manager, prefix, sys_id, sys_name, house_id, house_name))
-    sensors.extend(
-        _create_cumulative_and_period_sensors(manager, prefix, sys_id, sys_name, house_id, house_name)
-    )
-    sensors.extend(_create_house_and_untracked_sensors(manager, prefix, house_id, house_name))
+    sensors: list[SensorEntity] = [
+        RateSensor(manager, desc, prefix, devices[desc.group], currency)
+        for desc in RATE_SENSORS
+        if not desc.requires_inverter_ac or manager.inverter_ac_id
+    ]
+    for cdef in CUMULATIVE_SENSORS:
+        sensors.append(
+            CumulativeSensor(
+                manager,
+                name=cdef.name,
+                source_key=cdef.source_key,
+                unique_id=f"{prefix}{cdef.source_key}_cumulative",
+                entity_id=f"sensor.{prefix}{cdef.source_key}_cumulative",
+                unit=cdef.unit.format(currency=currency),
+                device_class=_device_class(cdef.unit),
+                device=devices[cdef.group],
+            )
+        )
 
-    dev_sensors, expected_unique_ids = _create_device_sensors(
-        manager, prefix, tracked_devices, device_names
-    )
-    sensors.extend(dev_sensors)
+    expected_device_ids: set[str] = set()
+    for source in tracked_devices:
+        name = device_names.get(source) or default_device_name(source)
+        device = SbfDevice(f"{prefix}dev_financials_{safe_id(source)}", f"{name} Financials")
+        for kind, label, unit in DEVICE_METRICS:
+            unique_id = f"{prefix}{device_key(source, kind)}_cumulative"
+            # Unique ID follows the source entity (rename-safe); the entity ID is only
+            # suggested from the name when the sensor is first created.
+            name_base = f"dev_{_slug(name)}_{kind}"
+            expected_device_ids.add(unique_id)
+            sensors.append(
+                CumulativeSensor(
+                    manager,
+                    name=f"{name} {label} Cumulative",
+                    source_key=device_key(source, kind),
+                    unique_id=unique_id,
+                    entity_id=f"sensor.{prefix}{name_base}_cumulative",
+                    unit=unit.format(currency=currency),
+                    device_class=_device_class(unit),
+                    device=device,
+                    source_entity=source,
+                )
+            )
 
-    _cleanup_orphaned_entities(hass, config_entry.entry_id, prefix, expected_unique_ids)
+    _cleanup_registry(registry, config_entry.entry_id, prefix, expected_device_ids)
 
     async_add_entities(sensors)
     await manager.async_start()
+    config_entry.async_on_unload(manager.async_stop)
 
 
-def _create_rate_sensors(
-    manager: FinancialManager,
-    prefix: str,
-    sys_id: str,
-    sys_name: str,
-    house_id: str,
-    house_name: str,
-) -> list[SensorEntity]:
-    """Create instantaneous rate sensors for power, costs, and earnings."""
-    return [
-        TotalPowerSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
-        TotalCostRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
-        NetGridCostRateSensor(manager, prefix, device_id_suffix=house_id, device_name=house_name),
-        SystemEarningsRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
-        SolarOnlyEarningsRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
-        BatteryAddedValueRateSensor(manager, prefix, device_id_suffix=sys_id, device_name=sys_name),
-    ]
+def _device_class(unit: str) -> SensorDeviceClass:
+    return SensorDeviceClass.ENERGY if unit == ENERGY else SensorDeviceClass.MONETARY
 
 
-def _create_cumulative_and_period_sensors(
-    manager: FinancialManager,
-    prefix: str,
-    sys_id: str,
-    sys_name: str,
-    house_id: str,
-    house_name: str,
-) -> list[SensorEntity]:
-    """Create cumulative and periodic sensors for system earnings and grid metrics."""
-    sensors: list[SensorEntity] = [
-        CumulativeSensor(
-            manager, prefix, "System Earnings Cumulative", "system_earnings_rate", "EUR",
-            device_id_suffix=sys_id, device_name=sys_name,
-        ),
-        CumulativeSensor(
-            manager, prefix, "Solar Only Earnings Cumulative", "solar_only_earnings_rate", "EUR",
-            device_id_suffix=sys_id, device_name=sys_name,
-        ),
-        CumulativeSensor(
-            manager, prefix, "Battery Added Value Cumulative", "battery_added_value_rate", "EUR",
-            device_id_suffix=sys_id, device_name=sys_name,
-        ),
-        CumulativeSensor(
-            manager, prefix, "Net Grid Cost Cumulative", "net_grid_cost_rate", "EUR",
-            device_id_suffix=house_id, device_name=house_name,
-        ),
-        CumulativeSensor(
-            manager, prefix, "Net Grid Energy Cumulative", "net_grid_energy_rate", "kWh",
-            SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
-        ),
-    ]
-
-    for period in PERIODS:
-        cap_period = period.capitalize()
-        sensors.extend([
-            PeriodSensor(
-                manager, prefix, f"System Earnings {cap_period}", "system_earnings_rate", "EUR",
-                period, device_id_suffix=sys_id, device_name=sys_name,
-            ),
-            PeriodSensor(
-                manager, prefix, f"Solar Only Earnings {cap_period}", "solar_only_earnings_rate", "EUR",
-                period, device_id_suffix=sys_id, device_name=sys_name,
-            ),
-            PeriodSensor(
-                manager, prefix, f"Battery Added Value {cap_period}", "battery_added_value_rate", "EUR",
-                period, device_id_suffix=sys_id, device_name=sys_name,
-            ),
-            PeriodSensor(
-                manager, prefix, f"Net Grid Cost {cap_period}", "net_grid_cost_rate", "EUR",
-                period, device_id_suffix=house_id, device_name=house_name,
-            ),
-            PeriodSensor(
-                manager, prefix, f"Net Grid Energy {cap_period}", "net_grid_energy_rate", "kWh",
-                period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
-            ),
-        ])
-
-    sensors.append(
-        PeriodSensor(
-            manager, prefix, "Inverter Losses Cost Daily", "inverter_loss_cost_rate", "EUR",
-            "daily", SensorDeviceClass.MONETARY, device_id_suffix=sys_id, device_name=sys_name,
-        )
-    )
-    sensors.append(
-        ManagedSensor(
-            manager, prefix, "Effective Price", "effective_price", "EUR/kWh",
-            SensorDeviceClass.MONETARY, house_id, house_name,
-        )
-    )
-    return sensors
-
-
-def _create_house_and_untracked_sensors(
-    manager: FinancialManager,
-    prefix: str,
-    house_id: str,
-    house_name: str,
-) -> list[SensorEntity]:
-    """Create Total System and Untracked cost/energy sensors."""
-    sensors: list[SensorEntity] = []
-
-    # Total System
-    ts_cost_cum = CumulativeSensor(
-        manager, prefix, "Total System Cost Cumulative", "total_system_cost_rate", "EUR",
-        device_id_suffix=house_id, device_name=house_name,
-    )
-    ts_energy_cum = CumulativeSensor(
-        manager, prefix, "Total System Energy Cumulative", "total_system_energy_rate", "kWh",
-        SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
-    )
-    sensors.extend([ts_cost_cum, ts_energy_cum])
-
-    for period in PERIODS:
-        cap = period.capitalize()
-        ts_cost_p = PeriodSensor(
-            manager, prefix, f"Total System Cost {cap}", "total_system_cost_rate", "EUR",
-            period, device_id_suffix=house_id, device_name=house_name,
-        )
-        ts_energy_p = PeriodSensor(
-            manager, prefix, f"Total System Energy {cap}", "total_system_energy_rate", "kWh",
-            period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
-        )
-        sensors.extend([ts_cost_p, ts_energy_p])
-
-    # Untracked
-    sensors.append(
-        ManagedSensor(
-            manager, prefix, "Untracked Power", "untracked_power", "W",
-            SensorDeviceClass.POWER, house_id, house_name,
-        )
-    )
-    ut_cost_cum = CumulativeSensor(
-        manager, prefix, "Untracked Cost Cumulative", "untracked_cost_rate", "EUR",
-        device_id_suffix=house_id, device_name=house_name,
-    )
-    ut_energy_cum = CumulativeSensor(
-        manager, prefix, "Untracked Energy Cumulative", "untracked_energy_rate", "kWh",
-        SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
-    )
-    sensors.extend([ut_cost_cum, ut_energy_cum])
-
-    for period in PERIODS:
-        cap = period.capitalize()
-        ut_cost_p = PeriodSensor(
-            manager, prefix, f"Untracked Cost {cap}", "untracked_cost_rate", "EUR",
-            period, device_id_suffix=house_id, device_name=house_name,
-        )
-        ut_energy_p = PeriodSensor(
-            manager, prefix, f"Untracked Energy {cap}", "untracked_energy_rate", "kWh",
-            period, SensorDeviceClass.ENERGY, device_id_suffix=house_id, device_name=house_name,
-        )
-        sensors.extend([ut_cost_p, ut_energy_p])
-
-    return sensors
-
-
-def _create_device_sensors(
-    manager: FinancialManager,
-    prefix: str,
-    tracked_devices: list[str],
-    device_names: dict[str, str],
-) -> tuple[list[SensorEntity], set[str]]:
-    """Create per-device cost and energy sensors."""
-    sensors: list[SensorEntity] = []
-    expected_unique_ids: set[str] = set()
-
-    for device_id in tracked_devices:
-        clean_id = device_id.replace("sensor.", "")
-        name_prefix = device_names.get(
-            device_id, clean_id.replace("_power", "").replace("_", " ").title()
-        )
-        safe_key = clean_id.replace(".", "_")
-        slugified_name = re.sub(r"[^a-z0-9]+", "_", name_prefix.lower()).strip("_")
-        base_id = f"dev_{slugified_name}"
-
-        dev_id = f"{prefix}dev_financials_{safe_key}"
-        dev_name = f"{name_prefix} Financials"
-
-        # Track unique IDs for registry cleanup
-        expected_unique_ids.add(f"{prefix}{base_id}_cost_rate_cumulative")
-        expected_unique_ids.add(f"{prefix}{base_id}_energy_rate_cumulative")
-        for period in PERIODS:
-            expected_unique_ids.add(f"{prefix}{base_id}_cost_rate_{period}")
-            expected_unique_ids.add(f"{prefix}{base_id}_energy_rate_{period}")
-
-        # Cumulative
-        dev_cost_cum = CumulativeSensor(
-            manager, prefix, f"{name_prefix} Cost Cumulative", f"dev_{safe_key}_cost_rate", "EUR",
-            device_id_suffix=dev_id, device_name=dev_name, entity_id_base=f"{base_id}_cost_rate",
-            source_entity=device_id,
-        )
-        dev_energy_cum = CumulativeSensor(
-            manager, prefix, f"{name_prefix} Energy Cumulative", f"dev_{safe_key}_energy_rate", "kWh",
-            SensorDeviceClass.ENERGY, device_id_suffix=dev_id, device_name=dev_name,
-            entity_id_base=f"{base_id}_energy_rate", source_entity=device_id,
-        )
-        sensors.extend([dev_cost_cum, dev_energy_cum])
-
-        # Periodic
-        for period in PERIODS:
-            cap = period.capitalize()
-            dev_cost_p = PeriodSensor(
-                manager, prefix, f"{name_prefix} Cost {cap}", f"dev_{safe_key}_cost_rate", "EUR",
-                period, device_id_suffix=dev_id, device_name=dev_name,
-                entity_id_base=f"{base_id}_cost_rate", source_entity=device_id,
-            )
-            dev_energy_p = PeriodSensor(
-                manager, prefix, f"{name_prefix} Energy {cap}", f"dev_{safe_key}_energy_rate", "kWh",
-                period, SensorDeviceClass.ENERGY, device_id_suffix=dev_id, device_name=dev_name,
-                entity_id_base=f"{base_id}_energy_rate", source_entity=device_id,
-            )
-            sensors.extend([dev_cost_p, dev_energy_p])
-
-    return sensors, expected_unique_ids
-
-
-def _cleanup_orphaned_entities(
-    hass: HomeAssistant, entry_id: str, prefix: str, expected_unique_ids: set[str]
+def _cleanup_registry(
+    registry: er.EntityRegistry, entry_id: str, prefix: str, expected_device_ids: set[str]
 ) -> None:
-    """Remove orphaned device and obsolete rate entities from the entity registry."""
-    registry = er.async_get(hass)
-    entries = er.async_entries_for_config_entry(registry, entry_id)
-    for entry in entries:
-        if "_avg_rate_" in entry.unique_id:
-            _LOGGER.info(
-                "Removing obsolete avg rate entity from Solar Battery Financials: %s",
-                entry.entity_id,
-            )
-            registry.async_remove(entry.entity_id)
-        elif f"{prefix}dev_" in entry.unique_id and entry.unique_id not in expected_unique_ids:
-            _LOGGER.info(
-                "Removing orphaned device entity from Solar Battery Financials: %s",
-                entry.entity_id,
-            )
+    """Remove the sensors of devices that are no longer tracked, and retired sensors."""
+    retired = {f"{prefix}{key}_cumulative" for key in RETIRED_TOTALS}
+    for entry in er.async_entries_for_config_entry(registry, entry_id):
+        uid = entry.unique_id
+        if entry.domain == "sensor" and (
+            uid in retired or (uid.startswith(f"{prefix}dev_") and uid not in expected_device_ids)
+        ):
+            _LOGGER.info("Removing sensor of untracked device: %s", entry.entity_id)
             registry.async_remove(entry.entity_id)
