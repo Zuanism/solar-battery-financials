@@ -4,6 +4,7 @@ CONF_GRID_SENSOR = "grid_sensor"
 CONF_SOLAR_SENSOR = "solar_sensor"
 CONF_BATTERY_SENSOR = "battery_sensor"
 CONF_INVERTER_AC_SENSOR = "inverter_ac_sensor"
+CONF_AC_SOLAR_SENSOR = "ac_solar_sensor"  # solar that bypasses the inverter (e.g. micro-inverters)
 CONF_PRICE_SENSOR = "price_sensor"
 CONF_EXPORT_PRICE_SENSOR = "export_price_sensor"
 CONF_FEED_IN_PENALTY = "feed_in_penalty"

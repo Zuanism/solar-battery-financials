@@ -115,6 +115,9 @@ const PALETTE = {
   cost: "#0288d1", energy: "#10b981", price: "#ffa000", power: "#008FFB", other: "#bdbdbd",
   untracked: "#9e9e9e", inverter: "#039be5", temperature: "#ef6c00",
 };
+/** Tracked devices, by their place in the configuration (main devices first, then sub-devices). */
+const DEVICE_PALETTE = ["#a260f0", "#8d6e63", "#90b4f5", "#63c6a0", "#d49b00", "#e57373", "#5c6bc0", "#f06292", "#26a69a", "#ffb74d"];
+const deviceColorAt = (i) => DEVICE_PALETTE[(i < 0 ? 0 : i) % DEVICE_PALETTE.length];
 const GOOD = `var(--success-color, ${PALETTE.good})`;
 const WARN = `var(--warning-color, ${PALETTE.warn})`;
 const BAD = `var(--error-color, ${PALETTE.bad})`;
@@ -659,14 +662,21 @@ const buildPowerView = ({ prefix, totPwr, states, mainDevs, subDevs, names, untr
 
   const getDevLabel = (dev) => deviceLabel(dev, names);
 
+  // Same colours as the Financials tab: devices by their place in the configuration
+  // (main devices come first there too, so the index matches), Untracked grey.
   const flowIndividuals = [
-    ...mainDevs.map((dev) => ({
+    ...mainDevs.map((dev, i) => ({
       entity: dev,
       name: getDevLabel(dev),
       icon: getSmartIcon(getDevLabel(dev), dev, states),
+      color: deviceColorAt(i),
+      color_icon: true,
       secondary_info: {},
     })),
-    { entity: untrackedSensor, name: "Untracked", icon: "mdi:help-network-outline", secondary_info: {} },
+    {
+      entity: untrackedSensor, name: "Untracked", icon: "mdi:help-network-outline",
+      color: PALETTE.untracked, color_icon: true, secondary_info: {},
+    },
   ];
 
   // Compact one-line earnings summary; the full breakdown lives on the Financials tab.
@@ -691,10 +701,13 @@ const buildPowerView = ({ prefix, totPwr, states, mainDevs, subDevs, names, untr
             entities: {
               battery: {
                 entity: batSensor || "sensor.dummy_battery_power",
+                // "consumption" is the discharge colour; "production" colours the icon with it.
+                color: { consumption: PALETTE.battery },
+                color_icon: "production",
                 ...(socSensor ? { state_of_charge: socSensor, show_state_of_charge: true, state_of_charge_unit_white_space: true } : (!batSensor ? { state_of_charge: "sensor.dummy_battery_soc", show_state_of_charge: true, state_of_charge_unit_white_space: true } : {})),
               },
-              grid: { entity: gridSensor, secondary_info: {} },
-              solar: { display_zero_state: true, secondary_info: {}, entity: solarSensor },
+              grid: { entity: gridSensor, color: { consumption: PALETTE.grid }, color_icon: "consumption", secondary_info: {} },
+              solar: { display_zero_state: true, secondary_info: {}, entity: solarSensor, color: PALETTE.solar, color_icon: true },
               fossil_fuel_percentage: { secondary_info: {} },
               home: { entity: `${prefix}total_power_consumption`, secondary_info: {} },
               individual: flowIndividuals,
@@ -1676,7 +1689,6 @@ const SANKEY_CSS = `
 
 // Colours in the style of Home Assistant's energy dashboard.
 const SANKEY_COLORS = { home: PALETTE.home };
-const SANKEY_PALETTE = ["#a260f0", "#8d6e63", "#90b4f5", "#63c6a0", "#d49b00", "#e57373", "#5c6bc0", "#f06292", "#26a69a", "#ffb74d"];
 
 /**
  * Earnings waterfall as inline SVG, written out as a sum: Gross − Solar earned − Battery earned
@@ -2476,8 +2488,7 @@ class SbfFinancialsCard extends HTMLElement {
     const order = [...this._config.main_devices, ...this._config.sub_devices]
       .filter((d) => d.target !== "untracked")
       .map((d) => d.target);
-    const i = order.indexOf(target);
-    return SANKEY_PALETTE[(i < 0 ? 0 : i) % SANKEY_PALETTE.length];
+    return deviceColorAt(order.indexOf(target));
   }
 
   /**

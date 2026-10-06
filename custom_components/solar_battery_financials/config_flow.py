@@ -19,6 +19,7 @@ from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_AC_SOLAR_SENSOR,
     CONF_BATTERY_SENSOR,
     CONF_DEVICE_NAMES,
     CONF_DEVICE_PARENTS,
@@ -45,9 +46,11 @@ from .const import (
 # Section → keys it contains. Optional keys left empty are saved as None, so a
 # cleared field really clears the setting.
 GRID_KEYS = (CONF_GRID_SENSOR, CONF_PRICE_SENSOR, CONF_EXPORT_PRICE_SENSOR)
-SYSTEM_KEYS = (CONF_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_INVERTER_AC_SENSOR, CONF_INVERT_INVERTER_AC)
+SYSTEM_KEYS = (
+    CONF_SOLAR_SENSOR, CONF_AC_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_INVERTER_AC_SENSOR, CONF_INVERT_INVERTER_AC,
+)
 EXPORT_KEYS = (CONF_FEED_IN_PENALTY, CONF_FEED_IN_PENALTY_PERCENT)
-POWER_KEYS = (CONF_GRID_SENSOR, CONF_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_INVERTER_AC_SENSOR)
+POWER_KEYS = (CONF_GRID_SENSOR, CONF_SOLAR_SENSOR, CONF_AC_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_INVERTER_AC_SENSOR)
 
 PARENT_NONE = "none"  # independent device
 PARENT_UNSPECIFIED = "unspecified"  # sub-device of some device that isn't tracked or chosen
@@ -81,6 +84,7 @@ def _grid_schema(cfg: dict[str, Any]) -> vol.Schema:
 def _system_schema(cfg: dict[str, Any]) -> vol.Schema:
     return vol.Schema({
         _marker(cfg, CONF_SOLAR_SENSOR): _sensor(),
+        _marker(cfg, CONF_AC_SOLAR_SENSOR): _sensor(),
         _marker(cfg, CONF_BATTERY_SENSOR): _sensor(),
         _marker(cfg, CONF_INVERTER_AC_SENSOR): _sensor(),
         _marker(cfg, CONF_INVERT_INVERTER_AC, default=DEFAULT_INVERT_INVERTER_AC): selector.BooleanSelector(),

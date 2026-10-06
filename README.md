@@ -53,7 +53,8 @@ The setup form is divided into sections. The two collapsed ones can usually be l
 | Grid & prices | Grid power | Yes | Power exchanged with the grid. **Positive = importing, negative = exporting.** |
 | | Import price | Yes | Current price you pay per kWh (e.g. Nordpool, Tibber, a static template sensor). |
 | | Export price | No | Current price you receive per kWh exported. If empty, the import price is used. |
-| Solar, battery & inverter | Solar power | No | DC power from the panels. **Positive = producing.** Without it, the system is treated as having no solar. |
+| Solar, battery & inverter | Solar power | No | DC power from the panels on your main inverter. **Positive = producing.** Without it, the system is treated as having no solar. Don't add AC-coupled panels to it; use the next field. |
+| | Extra AC solar power | No | AC output of panels that bypass the main inverter: their own micro-inverter on a separate house circuit (e.g. a shed). Added to the house load and to the solar-only simulation as AC, and kept out of the inverter efficiency (see [4.6](#46-inverter-efficiency-and-losses)). |
 | | Battery power | No | **Positive = discharging into the house, negative = charging.** Without it, the system is treated as having no battery. |
 | | Inverter AC power | No | AC power at the inverter's output. Enables measured inverter efficiency and exact loss tracking (see [4.6](#46-inverter-efficiency-and-losses)). Without it, a fixed 96 % efficiency is assumed. |
 | | Invert inverter AC sensor | No | Enable if your inverter reports **negative** power while supplying the house (e.g. Deye). Default off. |
@@ -184,7 +185,7 @@ All calculations run in `FinancialManager.recalculate()` (`manager.py`) every ti
 **With an inverter AC sensor**, the load is what the grid and inverter together deliver:
 
 ```text
-Load (W) = Grid + Inverter AC
+Load (W) = Grid + Inverter AC + AC solar
 ```
 
 **Without one**, the inverter's AC output is estimated from the DC side, minus estimated conversion losses at the current efficiency (96 % unless measured):
@@ -193,8 +194,10 @@ Load (W) = Grid + Inverter AC
 Net DC      = max(Solar, 0) + Battery
 Loss (W)    = Net DC × (1 − efficiency)          when Net DC > 0 (inverter supplying)
             = |Net DC| × (1 / efficiency − 1)    when Net DC ≤ 0 (charging from AC)
-Load (W)    = Grid + Solar + Battery − Loss
+Load (W)    = Grid + Solar + Battery − Loss + AC solar
 ```
+
+*AC solar* is the optional **Extra AC solar power** sensor (0 without it). It feeds a house circuit directly, so it adds to the load without passing the main inverter.
 
 ### 4.2 Grid costs
 
@@ -227,7 +230,7 @@ Untracked power is the load minus the power of all tracked devices that are **no
 
 To separate what the panels earn from what the battery adds, the integration simulates your bill as if the battery didn't exist:
 
-1. **Solar as AC:** `Simulated solar (kW) = max(Solar, 0) × efficiency / 1000`
+1. **Solar as AC:** `Simulated solar (kW) = (max(Solar, 0) × efficiency + AC solar) / 1000`
 2. **Grid without battery:** `Simulated grid (kW) = Load (kW) − Simulated solar (kW)`
 3. **Simulated bill:** simulated grid × import price when positive (importing), or × effective export price when negative (exporting; a negative cost is revenue).
 4. **Solar-only earnings:** `Gross cost rate − Simulated bill`
@@ -247,6 +250,8 @@ With an inverter AC sensor, efficiency is measured whenever the inverter supplie
 ```text
 Efficiency = Inverter AC ÷ (max(Solar, 0) + Battery)
 ```
+
+Only the main inverter's DC solar counts here: **Extra AC solar power** never passes through it. Adding AC-coupled panels to the Solar sensor instead inflates the denominator and makes the efficiency look too low, or stop updating once it falls below 80 %.
 
 Readings outside 80–100 % are ignored (they happen during transitions), and the last valid value is kept. That efficiency is used in the solar-only simulation and exposed as the **Inverter Efficiency** sensor. After a restart it starts at 96 % until the next valid reading.
 
@@ -436,6 +441,11 @@ tabs:
 ## 7. Upgrading and version history
 
 Migrations run automatically the first time a new version starts, including when upgrading from 1.2.x. Sensors that are no longer provided are removed from the entity registry; their long-term statistics are kept. Device sensors keep their entity IDs and history, but customisations made to them in the entity registry (a changed entity ID, name or icon) are not carried over from versions before 1.4.0.
+
+### 2.3.0: AC-coupled solar
+
+- New optional sensor **Extra AC solar power** for panels with their own micro-inverter on a separate circuit (e.g. on a shed). Previously these had to be added to the Solar sensor, which made the measured inverter efficiency far too low. If you did that, set Solar back to the main inverter's DC power only and put the extra panels here (**Configure → Sensors**).
+- The power-flow card on the Power tab now uses the same colours as the Financials tab: each device keeps its colour across both tabs, Untracked is grey, and solar, battery and grid match the charts.
 
 ### 2.2.1: upgrade fixes
 

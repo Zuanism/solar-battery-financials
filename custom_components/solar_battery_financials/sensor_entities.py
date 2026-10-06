@@ -154,6 +154,7 @@ class RateSensor(SbfSensorBase):
             "device_parents": m.device_parents,
             "grid_sensor": m.grid_id,
             "solar_sensor": m.solar_id,
+            "ac_solar_sensor": m.ac_solar_id,
             "battery_sensor": m.battery_id,
             "price_sensor": m.price_id,
             "export_price_sensor": m.export_price_id,

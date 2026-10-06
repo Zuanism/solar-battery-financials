@@ -23,12 +23,14 @@
             "description": "Laat weg wat je niet hebt.",
             "data": {
               "solar_sensor": "Zonnevermogen",
+              "ac_solar_sensor": "Extra AC-zonnevermogen",
               "battery_sensor": "Batterijvermogen",
               "inverter_ac_sensor": "AC-vermogen omvormer",
               "invert_inverter_ac": "AC-sensor omvormer omkeren"
             },
             "data_description": {
-              "solar_sensor": "DC-vermogen van de panelen; positief tijdens opwek.",
+              "solar_sensor": "DC-vermogen van de panelen op je hoofdomvormer; positief tijdens opwek. Tel AC-gekoppelde panelen hier niet mee.",
+              "ac_solar_sensor": "Panelen met een eigen micro-omvormer op een aparte huisgroep (bijv. op een schuur), die de hoofdomvormer niet ziet. Geteld als AC, dus zonder invloed op het omvormerrendement.",
               "battery_sensor": "Positief bij ontladen naar het huis, negatief bij laden.",
               "inverter_ac_sensor": "AC-vermogen aan de uitgang van de omvormer. Maakt gemeten rendement en exacte verliezen mogelijk; zonder deze sensor wordt 96 % rendement aangenomen.",
               "invert_inverter_ac": "Inschakelen als de omvormersensor negatief is terwijl hij het huis voedt (bijv. Deye)."
@@ -115,12 +117,14 @@
             "description": "Laat weg wat je niet hebt.",
             "data": {
               "solar_sensor": "Zonnevermogen",
+              "ac_solar_sensor": "Extra AC-zonnevermogen",
               "battery_sensor": "Batterijvermogen",
               "inverter_ac_sensor": "AC-vermogen omvormer",
               "invert_inverter_ac": "AC-sensor omvormer omkeren"
             },
             "data_description": {
-              "solar_sensor": "DC-vermogen van de panelen; positief tijdens opwek.",
+              "solar_sensor": "DC-vermogen van de panelen op je hoofdomvormer; positief tijdens opwek. Tel AC-gekoppelde panelen hier niet mee.",
+              "ac_solar_sensor": "Panelen met een eigen micro-omvormer op een aparte huisgroep (bijv. op een schuur), die de hoofdomvormer niet ziet. Geteld als AC, dus zonder invloed op het omvormerrendement.",
               "battery_sensor": "Positief bij ontladen naar het huis, negatief bij laden.",
               "inverter_ac_sensor": "AC-vermogen aan de uitgang van de omvormer. Maakt gemeten rendement en exacte verliezen mogelijk; zonder deze sensor wordt 96 % rendement aangenomen.",
               "invert_inverter_ac": "Inschakelen als de omvormersensor negatief is terwijl hij het huis voedt (bijv. Deye)."

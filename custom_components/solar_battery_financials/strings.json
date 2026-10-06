@@ -23,12 +23,14 @@
             "description": "Leave out what you don't have.",
             "data": {
               "solar_sensor": "Solar power",
+              "ac_solar_sensor": "Extra AC solar power",
               "battery_sensor": "Battery power",
               "inverter_ac_sensor": "Inverter AC power",
               "invert_inverter_ac": "Invert inverter AC sensor"
             },
             "data_description": {
-              "solar_sensor": "DC power from the panels; positive while producing.",
+              "solar_sensor": "DC power from the panels on your main inverter; positive while producing. Don't include AC-coupled panels here.",
+              "ac_solar_sensor": "Panels with their own micro-inverter on a separate house circuit (e.g. on a shed), which the main inverter doesn't see. Counted as AC, so they don't affect the inverter efficiency.",
               "battery_sensor": "Positive while discharging into the house, negative while charging.",
               "inverter_ac_sensor": "AC power at the inverter output. Enables measured efficiency and exact loss tracking; without it 96 % efficiency is assumed.",
               "invert_inverter_ac": "Enable if the inverter sensor is negative while supplying the house (e.g. Deye)."
@@ -115,12 +117,14 @@
             "description": "Leave out what you don't have.",
             "data": {
               "solar_sensor": "Solar power",
+              "ac_solar_sensor": "Extra AC solar power",
               "battery_sensor": "Battery power",
               "inverter_ac_sensor": "Inverter AC power",
               "invert_inverter_ac": "Invert inverter AC sensor"
             },
             "data_description": {
-              "solar_sensor": "DC power from the panels; positive while producing.",
+              "solar_sensor": "DC power from the panels on your main inverter; positive while producing. Don't include AC-coupled panels here.",
+              "ac_solar_sensor": "Panels with their own micro-inverter on a separate house circuit (e.g. on a shed), which the main inverter doesn't see. Counted as AC, so they don't affect the inverter efficiency.",
               "battery_sensor": "Positive while discharging into the house, negative while charging.",
               "inverter_ac_sensor": "AC power at the inverter output. Enables measured efficiency and exact loss tracking; without it 96 % efficiency is assumed.",
               "invert_inverter_ac": "Enable if the inverter sensor is negative while supplying the house (e.g. Deye)."

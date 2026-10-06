@@ -45,6 +45,7 @@ class FinancialManager:
         tracked_devices: list[str] | None = None,
         sub_devices: list[str] | None = None,
         device_names: dict[str, str] | None = None,
+        ac_solar: str | None = None,
     ) -> None:
         self.hass = hass
         self.tracked_devices = tracked_devices or []
@@ -54,6 +55,7 @@ class FinancialManager:
 
         self.grid_id = grid
         self.solar_id = solar
+        self.ac_solar_id = ac_solar
         self.battery_id = battery
         self.price_id = price
         self.export_price_id = export_price
@@ -71,6 +73,7 @@ class FinancialManager:
             (price, "price"),
             (export_price, "export_price"),
             (solar, "solar"),
+            (ac_solar, "ac_solar"),
             (battery, "battery"),
             (inverter_ac, "inverter_ac"),
         ):
@@ -85,6 +88,7 @@ class FinancialManager:
         self.values: dict[str, float] = {
             "grid": 0.0,
             "solar": 0.0,
+            "ac_solar": 0.0,
             "battery": 0.0,
             "price": 0.0,
             "export_price": 0.0,
@@ -209,6 +213,7 @@ class FinancialManager:
 
         grid = self.values["grid"]
         raw_solar = self.values["solar"]
+        ac_solar = self.values["ac_solar"]
         raw_battery = self.values["battery"]
         price = self.values["price"]
         raw_export_price = (
@@ -222,7 +227,7 @@ class FinancialManager:
 
         # 1. Total power & efficiency
         total_power, total_load_kw, grid_kw = self._calculate_total_power(
-            grid, raw_solar, raw_battery, inverter_ac
+            grid, raw_solar, raw_battery, inverter_ac, ac_solar
         )
 
         # 2. Grid costs & effective electricity price
@@ -235,7 +240,7 @@ class FinancialManager:
 
         # 4. System & solar-only earnings, and battery added value
         self._calculate_earnings(
-            gross_cost, net_grid_cost, total_load_kw, raw_solar, price, raw_export_price
+            gross_cost, net_grid_cost, total_load_kw, raw_solar, ac_solar, price, raw_export_price
         )
 
         # 5. Inverter losses power and cost rate
@@ -250,11 +255,16 @@ class FinancialManager:
         self._last_update = now
 
     def _calculate_total_power(
-        self, grid: float, raw_solar: float, raw_battery: float, inverter_ac: float
+        self, grid: float, raw_solar: float, raw_battery: float, inverter_ac: float, ac_solar: float
     ) -> tuple[float, float, float]:
-        """Compute total household power consumption and update efficiency if meter is present."""
+        """Compute total household power consumption and update efficiency if meter is present.
+
+        AC-coupled solar (panels with their own micro-inverter, on a separate house
+        circuit) never passes the main inverter: it adds to the load directly and is
+        kept out of the efficiency and loss calculations.
+        """
         if self.inverter_ac_id:
-            total_power = grid + inverter_ac
+            total_power = grid + inverter_ac + ac_solar
             if inverter_ac > 0:
                 dc_to_ac = max(raw_solar, 0.0) + raw_battery
                 if dc_to_ac > 50:
@@ -272,7 +282,7 @@ class FinancialManager:
                     if self._last_efficiency > 0
                     else 0.0
                 )
-            total_power = grid + raw_solar + raw_battery - est_inverter_loss
+            total_power = grid + raw_solar + raw_battery - est_inverter_loss + ac_solar
 
         self.values["total_power_consumption"] = total_power
         total_load_kw = total_power / 1000.0
@@ -328,6 +338,7 @@ class FinancialManager:
         net_grid_cost: float,
         total_load_kw: float,
         raw_solar: float,
+        ac_solar: float,
         price: float,
         raw_export_price: float,
     ) -> None:
@@ -337,12 +348,13 @@ class FinancialManager:
 
         # --- Solar Only Earnings Rate Calculation ---
         # Formula: solar_only = gross_cost - sim_net_cost
-        # 1. Convert DC solar to AC using inverter efficiency: sim_solar_ac = max(raw_solar, 0) * efficiency
+        # 1. Convert DC solar to AC using inverter efficiency, plus AC-coupled solar as is:
+        #    sim_solar_ac = max(raw_solar, 0) * efficiency + ac_solar
         # 2. Simulate net grid balance without battery: sim_grid = total_load_kw - sim_solar_kw
         # 3. Calculate simulated net bill:
         #    - If sim_grid > 0 (importing): sim_net_cost = sim_grid * price
         #    - If sim_grid <= 0 (exporting): sim_net_cost = sim_grid * effective_export_price
-        sim_solar_ac = max(raw_solar, 0.0) * self._last_efficiency
+        sim_solar_ac = max(raw_solar, 0.0) * self._last_efficiency + ac_solar
         sim_grid = total_load_kw - (sim_solar_ac / 1000.0)
         if sim_grid > 0:
             sim_net_cost = sim_grid * price

@@ -17,6 +17,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    CONF_AC_SOLAR_SENSOR,
     CONF_BATTERY_SENSOR,
     CONF_DEVICE_NAMES,
     CONF_DEVICE_PARENTS,
@@ -149,6 +150,7 @@ async def async_setup_entry(
         tracked_devices,
         config.get(CONF_SUB_DEVICES, []),
         device_names,
+        config.get(CONF_AC_SOLAR_SENSOR),
     )
 
     manager.device_parents = config.get(CONF_DEVICE_PARENTS) or {}
