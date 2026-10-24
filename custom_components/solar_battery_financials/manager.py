@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import (
@@ -22,7 +22,27 @@ from homeassistant.helpers.event import (
 )
 import homeassistant.util.dt as dt_util
 
-from .const import POWER_UNIT_FACTORS, RATE_WRITE_INTERVAL_SECONDS, TOTAL_WRITE_INTERVAL_SECONDS, device_key
+from .const import (
+    CONF_AC_SOLAR_SENSOR,
+    CONF_BATTERY_SENSOR,
+    CONF_DEVICE_NAMES,
+    CONF_DEVICE_PARENTS,
+    CONF_EXPORT_PRICE_SENSOR,
+    CONF_FEED_IN_PENALTY,
+    CONF_FEED_IN_PENALTY_PERCENT,
+    CONF_GRID_SENSOR,
+    CONF_INVERTER_AC_SENSOR,
+    CONF_INVERT_INVERTER_AC,
+    CONF_PRICE_SENSOR,
+    CONF_SOLAR_SENSOR,
+    CONF_SUB_DEVICES,
+    CONF_TRACKED_DEVICES,
+    DEFAULT_INVERT_INVERTER_AC,
+    POWER_UNIT_FACTORS,
+    RATE_WRITE_INTERVAL_SECONDS,
+    TOTAL_WRITE_INTERVAL_SECONDS,
+    device_key,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,6 +143,28 @@ class FinancialManager:
         self._last_update = None
         self._last_efficiency = 0.96
 
+    @classmethod
+    def from_config(cls, hass: HomeAssistant, config: dict[str, Any]) -> FinancialManager:
+        """Manager for a config entry's merged data and options."""
+        manager = cls(
+            hass,
+            config[CONF_GRID_SENSOR],
+            config.get(CONF_SOLAR_SENSOR),
+            config.get(CONF_BATTERY_SENSOR),
+            config[CONF_PRICE_SENSOR],
+            config.get(CONF_EXPORT_PRICE_SENSOR),
+            config.get(CONF_FEED_IN_PENALTY, 0.0),
+            config.get(CONF_FEED_IN_PENALTY_PERCENT, 0.0),
+            config.get(CONF_INVERTER_AC_SENSOR),
+            config.get(CONF_INVERT_INVERTER_AC, DEFAULT_INVERT_INVERTER_AC),
+            config.get(CONF_TRACKED_DEVICES, []),
+            config.get(CONF_SUB_DEVICES, []),
+            config.get(CONF_DEVICE_NAMES, {}),
+            config.get(CONF_AC_SOLAR_SENSOR),
+        )
+        manager.device_parents = config.get(CONF_DEVICE_PARENTS) or {}
+        return manager
+
     async def async_start(self) -> None:
         """Initialize values and subscribe to state change events."""
         for entity_id in self.input_entities:
@@ -184,18 +226,23 @@ class FinancialManager:
         return bool(self._unavailable)
 
     def _update_value(self, entity_id: str, state: Any) -> None:
-        """Parse an input's state into self.values.
-
-        Unavailable core inputs keep their last value and pause integration;
-        unavailable tracked devices count as 0 W.
-        """
+        """Parse an input's state into self.values."""
         try:
             val = float(state.state) if state is not None else None
         except ValueError:
             val = None
+        unit = state.attributes.get("unit_of_measurement") if state is not None else None
+        self.set_input(entity_id, val, unit)
+
+    def set_input(self, entity_id: str, val: float | None, unit: str | None) -> None:
+        """Store an input value (None = unavailable) in self.values.
+
+        Unavailable core inputs keep their last value and pause integration;
+        unavailable tracked devices count as 0 W.
+        """
         if val is not None and entity_id not in (self.price_id, self.export_price_id):
             # Power inputs may be in W or kW; everything is calculated in W.
-            val *= POWER_UNIT_FACTORS.get(state.attributes.get("unit_of_measurement"), 1.0)
+            val *= POWER_UNIT_FACTORS.get(unit, 1.0)
         if entity_id in self._core_inputs:
             if val is None:
                 self._unavailable.add(entity_id)
@@ -204,13 +251,25 @@ class FinancialManager:
         for key in self._input_keys.get(entity_id, ()):
             self.values[key] = val if val is not None else 0.0
 
-    def recalculate(self) -> None:
-        """Perform full recalculation of all financial metrics."""
-        now = dt_util.utcnow()
+    def recalculate(self, now: datetime | None = None) -> None:
+        """Recalculate all metrics and let the listeners integrate up to `now`.
+
+        `now` is only passed when replaying history (see history.py).
+        """
+        now = now or dt_util.utcnow()
         delta_hours = 0.0
         if self._last_update and not self.paused:
             delta_hours = (now - self._last_update).total_seconds() / 3600.0
 
+        self.compute()
+
+        for listener in self.listeners:
+            listener(delta_hours)
+
+        self._last_update = now
+
+    def compute(self) -> None:
+        """Calculate all rates in self.values from the current inputs."""
         grid = self.values["grid"]
         raw_solar = self.values["solar"]
         ac_solar = self.values["ac_solar"]
@@ -247,12 +306,6 @@ class FinancialManager:
         self._calculate_inverter_losses(
             raw_solar, raw_battery, inverter_ac, grid_kw, price, export_price
         )
-
-        # 6. Notify listeners
-        for listener in self.listeners:
-            listener(delta_hours)
-
-        self._last_update = now
 
     def _calculate_total_power(
         self, grid: float, raw_solar: float, raw_battery: float, inverter_ac: float, ac_solar: float

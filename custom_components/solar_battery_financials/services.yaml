@@ -1,0 +1,27 @@
+recalculate_history:
+  fields:
+    start:
+      required: true
+      selector:
+        datetime:
+    end:
+      selector:
+        datetime:
+    previous_settings:
+      required: true
+      selector:
+        object:
+    dry_run:
+      default: true
+      selector:
+        boolean:
+    entity_id:
+      selector:
+        entity:
+          integration: solar_battery_financials
+          domain: sensor
+          multiple: true
+    statistics_only:
+      default: false
+      selector:
+        boolean:

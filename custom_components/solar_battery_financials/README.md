@@ -299,6 +299,49 @@ When no baselines were saved yet (after upgrading from a version that didn't sto
 - **Adding** a device creates its two cumulative sensors, starting at 0.
 - **Removing** a device removes its sensors from the entity registry. Their long-term statistics remain in the database until you delete them under **Developer tools → Statistics**.
 
+### 5.5 Recalculating history
+
+After fixing a configuration mistake, the action **Solar & Battery Financials: Recalculate history** (`solar_battery_financials.recalculate_history`) corrects the cumulative sensors over the period the mistake lasted. It calculates that period twice from the recorded inputs, once with the previous (wrong) settings and once with the current ones, and adds the difference to what was recorded. That corrects the sensors' long-term and 5-minute statistics (which the dashboard, the Energy dashboard and statistics cards use), their running totals and their `today` / `this_week` / `this_month` / `this_year` attributes. Run it from **Developer tools → Actions**.
+
+| Field | Default | |
+|---|---|---|
+| `start` | (required) | Start of the period, rounded down to the hour: when the mistake started. |
+| `end` | now | End of the period, rounded down to the hour: when it was fixed. |
+| `previous_settings` | (required) | The settings as they were during the period, with the keys of the configuration (see below). Only the ones that differ from the current settings matter. |
+| `dry_run` | `true` | Only report the corrections. |
+| `entity_id` | all | Only correct these cumulative sensors. |
+| `statistics_only` | `false` | Use hourly averages even where state history exists. Only allowed in a dry run, to compare both methods. |
+
+**Why a difference.** Totals the mistake didn't affect stay exactly as recorded. And both calculations use the tracked devices as they are now, so devices that were added, removed or replaced since then (also under the same name) are the same in both and cancel out: their consumption isn't moved to or from Untracked. One limitation: a device that wasn't tracked yet, or was replaced, during the period gets no correction of its own cost; its share of the correction stays in Untracked, so devices and Untracked still add up to the house total.
+
+**How exact it is.** Within the recorder's state history (`purge_keep_days`, 10 days by default) every recorded input change is replayed in order, which gives exactly what the integration would have recorded with the right settings. Before that only the inputs' hourly averages are left, and each hour is calculated from those: the correction is then approximate (in a test with a wrong inverter sign and a battery trading on 15-minute prices, the earnings correction came out about 12 % too small). Hours for which an input has no statistics, and periods in which Home Assistant was down, keep what was recorded.
+
+**One period per difference.** `previous_settings` applies to every hour of the period. So set `end` to the moment of the fix: a later `end` would "correct" hours that were already right. If something else changed halfway, split the period into runs that each have their own `previous_settings`.
+
+**Example.** The inverter AC sign was wrong from 1 September until it was fixed on 20 October at 14:00:
+
+```yaml
+action: solar_battery_financials.recalculate_history
+data:
+  start: "2026-09-01 00:00:00"
+  end: "2026-10-20 14:00:00"
+  previous_settings:
+    invert_inverter_ac: false
+  dry_run: true
+```
+
+Keys for `previous_settings`: `grid_sensor`, `price_sensor`, `export_price_sensor`, `solar_sensor`, `ac_solar_sensor`, `battery_sensor`, `inverter_ac_sensor` (an entity ID, or `null` if it wasn't set), `invert_inverter_ac`, `feed_in_penalty` and `feed_in_penalty_percent`.
+
+**Reading the result.** The response repeats the `previous_settings` that differ from the current ones, lists the number of exact, approximate and skipped hours, and per sensor the recorded and recalculated increase over the period and the `correction`. For approximate hours, `approximation_check` compares what was recorded with what the hourly averages give with the previous settings: the further apart they are, the less precise the correction of those hours. Check the numbers, then run it again with `dry_run: false`.
+
+**Only once per period.** Because a difference is added, a second run over the same period would add it again. Real runs are therefore logged (`.storage/solar_battery_financials.recalculations`), and a real run that overlaps an earlier one for the same sensors is refused; a dry run reports the overlap under `overlaps_earlier_runs`. To redo a run, restore the backup made before it.
+
+Good to know:
+
+- Back up first (a Home Assistant backup will do): the corrected statistics replace the recorded ones, and the backup is the only way back.
+- Only one recalculation runs at a time. The final write waits for a moment away from the recorder's 5-minute statistics run, which can take up to a minute. The action returns before the recorder has written everything; the corrected statistics appear a few seconds later.
+- The sensors' state history (the **History** page) isn't changed; it is purged after `purge_keep_days` anyway.
+
 ---
 
 ## 6. Dashboard
@@ -442,6 +485,11 @@ tabs:
 
 Migrations run automatically the first time a new version starts, including when upgrading from 1.2.x. Sensors that are no longer provided are removed from the entity registry; their long-term statistics are kept. Device sensors keep their entity IDs and history, but customisations made to them in the entity registry (a changed entity ID, name or icon) are not carried over from versions before 1.4.0.
 
+### 2.5.0: recalculate history
+
+- New action **Recalculate history** to correct the totals of a period after fixing a configuration mistake (see [5.5](#55-recalculating-history)).
+- Fix: changing the options (e.g. renaming a device) could leave the integration unable to reload until Home Assistant restarted.
+
 ### 2.3.0: AC-coupled solar
 
 - New optional sensor **Extra AC solar power** for panels with their own micro-inverter on a separate circuit (e.g. on a shed). Previously these had to be added to the Solar sensor, which made the measured inverter efficiency far too low. If you did that, set Solar back to the main inverter's DC power only and put the extra panels here (**Configure → Sensors**).
@@ -528,6 +576,8 @@ Migrations run automatically the first time a new version starts, including when
 | `frontend_resource.py` | Serves `frontend/strategy.js` at `/solar_battery_financials/strategy.js` and keeps the Lovelace resource URL at `?v=<content hash>`. Retries once Home Assistant has started if dashboards aren't loaded yet. |
 | `const.py` | Configuration keys, defaults, write intervals, period attribute names, and ID helpers (`safe_id`, `device_key`, `default_device_name`). |
 | `manager.py` | `FinancialManager`: subscribes to the inputs, parses them (including unavailability), runs the calculations from section 4, and drives the write timers. |
+| `history.py` | The `recalculate_history` action of [5.5](#55-recalculating-history): replays `FinancialManager` over recorded inputs with the previous and the current settings, and adds the difference to the cumulative sensors' statistics and totals. Logs real runs in `.storage`. |
+| `services.yaml` | Fields of the `recalculate_history` action (texts in `strings.json`). |
 | `sensor.py` | Declares all sensors as data (`RATE_SENSORS`, `CUMULATIVE_SENSORS`, `DEVICE_METRICS`), creates them, and runs the registry migrations and cleanup. |
 | `sensor_entities.py` | Entity classes: `RateSensor` (instantaneous values) and `CumulativeSensor` (integral, period attributes, restore data). |
 | `config_flow.py` | Setup form with sections, validation (units, inverter sign), device names and hierarchy, and the options menu. |

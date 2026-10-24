@@ -17,23 +17,11 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    CONF_AC_SOLAR_SENSOR,
-    CONF_BATTERY_SENSOR,
     CONF_DEVICE_NAMES,
-    CONF_DEVICE_PARENTS,
-    CONF_EXPORT_PRICE_SENSOR,
-    CONF_FEED_IN_PENALTY,
-    CONF_FEED_IN_PENALTY_PERCENT,
-    CONF_GRID_SENSOR,
-    CONF_INVERTER_AC_SENSOR,
-    CONF_INVERT_INVERTER_AC,
     CONF_PREFIX,
-    CONF_PRICE_SENSOR,
-    CONF_SOLAR_SENSOR,
-    CONF_SUB_DEVICES,
     CONF_TRACKED_DEVICES,
-    DEFAULT_INVERT_INVERTER_AC,
     DEFAULT_PREFIX,
+    DOMAIN,
     default_device_name,
     device_key,
     safe_id,
@@ -136,24 +124,7 @@ async def async_setup_entry(
     device_names: dict[str, str] = config.get(CONF_DEVICE_NAMES, {})
     currency = hass.config.currency
 
-    manager = FinancialManager(
-        hass,
-        config[CONF_GRID_SENSOR],
-        config.get(CONF_SOLAR_SENSOR),
-        config.get(CONF_BATTERY_SENSOR),
-        config[CONF_PRICE_SENSOR],
-        config.get(CONF_EXPORT_PRICE_SENSOR),
-        config.get(CONF_FEED_IN_PENALTY, 0.0),
-        config.get(CONF_FEED_IN_PENALTY_PERCENT, 0.0),
-        config.get(CONF_INVERTER_AC_SENSOR),
-        config.get(CONF_INVERT_INVERTER_AC, DEFAULT_INVERT_INVERTER_AC),
-        tracked_devices,
-        config.get(CONF_SUB_DEVICES, []),
-        device_names,
-        config.get(CONF_AC_SOLAR_SENSOR),
-    )
-
-    manager.device_parents = config.get(CONF_DEVICE_PARENTS) or {}
+    manager = FinancialManager.from_config(hass, config)
     registry = er.async_get(hass)
     devices = {
         "system": SbfDevice(f"{prefix}system_financials", "System Financials"),
@@ -206,6 +177,17 @@ async def async_setup_entry(
     async_add_entities(sensors)
     await manager.async_start()
     config_entry.async_on_unload(manager.async_stop)
+
+    # For the recalculate_history action (history.py).
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = [
+        s for s in sensors if isinstance(s, CumulativeSensor)
+    ]
+
+    def _forget_sensors() -> None:
+        # Must return None: Home Assistant awaits whatever an unload callback returns.
+        hass.data[DOMAIN].pop(config_entry.entry_id, None)
+
+    config_entry.async_on_unload(_forget_sensors)
 
 
 def _device_class(unit: str) -> SensorDeviceClass:

@@ -167,5 +167,37 @@
       "inverter_sign": "De AC-sensor van de omvormer heeft het verkeerde teken voor deze instelling terwijl de panelen opwekken. Zet 'AC-sensor omvormer omkeren' om.",
       "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn."
     }
+  },
+  "services": {
+    "recalculate_history": {
+      "name": "Geschiedenis herberekenen",
+      "description": "Corrigeert de cumulatieve sensoren over een periode in het verleden na een configuratiefout: berekent die met de vorige en de huidige instellingen, en telt het verschil op bij de statistieken en totalen. Voer het eerst uit als proefrun om de correcties te zien.",
+      "fields": {
+        "start": {
+          "name": "Begin",
+          "description": "Begin van de periode (afgerond naar beneden op het uur). Kies het moment waarop de fout begon."
+        },
+        "end": {
+          "name": "Einde",
+          "description": "Einde van de periode (afgerond naar beneden op het uur). Standaard nu."
+        },
+        "previous_settings": {
+          "name": "Vorige instellingen",
+          "description": "De instellingen zoals ze in de periode waren, bijv. {\"invert_inverter_ac\": false}. Alleen de instellingen die afwijken van de huidige tellen mee."
+        },
+        "dry_run": {
+          "name": "Proefrun",
+          "description": "Alleen de correcties berekenen en tonen; niets wijzigen."
+        },
+        "entity_id": {
+          "name": "Sensoren",
+          "description": "Cumulatieve sensoren die gecorrigeerd worden. Standaard allemaal."
+        },
+        "statistics_only": {
+          "name": "Alleen statistieken",
+          "description": "Gebruik de uurgemiddelden van de invoer, ook waar de exacte statusgeschiedenis beschikbaar is. Alleen toegestaan in een proefrun, om beide methoden te vergelijken."
+        }
+      }
+    }
   }
 }

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -307,6 +307,22 @@ class CumulativeSensor(SbfSensorBase, RestoreEntity):
             if self._period_keys.get(period) != key:
                 self._period_keys[period] = key
                 self._baselines[period] = self._state
+
+    @callback
+    def apply_correction(self, total: float, correction_before: Callable[[datetime], float]) -> None:
+        """Shift the running total after its history was recalculated (see history.py).
+
+        `total` is the whole correction; `correction_before(t)` the part of it that
+        falls before `t`, which moves the baseline of a period that started at `t`.
+        """
+        now = dt_util.now()
+        for period in PERIOD_ATTRIBUTES:
+            self._baselines[period] = (
+                self._baselines.get(period, self._state) + correction_before(_period_start(period, now))
+            )
+        self._state += total
+        self._last_written = None
+        self._write_if_changed()
 
     def _period_values(self) -> dict[str, float]:
         return {

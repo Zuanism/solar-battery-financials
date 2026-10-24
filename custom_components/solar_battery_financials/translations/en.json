@@ -167,5 +167,37 @@
       "inverter_sign": "The inverter AC sensor has the wrong sign for this setting while the panels are producing. Toggle 'Invert inverter AC sensor'.",
       "parent_not_independent": "A device that other devices are part of must itself be independent."
     }
+  },
+  "services": {
+    "recalculate_history": {
+      "name": "Recalculate history",
+      "description": "Corrects the cumulative sensors over a past period after a configuration mistake: calculates it with the previous and the current settings, and adds the difference to the statistics and totals. Run it as a dry run first to see the corrections.",
+      "fields": {
+        "start": {
+          "name": "Start",
+          "description": "Start of the period to recalculate (rounded down to the hour). Pick the moment the mistake started."
+        },
+        "end": {
+          "name": "End",
+          "description": "End of the period (rounded down to the hour). Defaults to now."
+        },
+        "previous_settings": {
+          "name": "Previous settings",
+          "description": "The settings as they were during the period, e.g. {\"invert_inverter_ac\": false}. Only the ones that differ from the current settings matter."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Only calculate and report the corrections; change nothing."
+        },
+        "entity_id": {
+          "name": "Sensors",
+          "description": "Cumulative sensors to correct. Defaults to all of them."
+        },
+        "statistics_only": {
+          "name": "Statistics only",
+          "description": "Use the inputs' hourly averages even where the exact state history is available. Only allowed in a dry run, to compare both methods."
+        }
+      }
+    }
   }
 }
