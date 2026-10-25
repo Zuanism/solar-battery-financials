@@ -57,6 +57,20 @@
               "tracked_devices": "Vermogenssensoren van apparaten of groepen (slimme stekkers, tussenmeters). Optioneel."
             }
           },
+          "ev": {
+            "name": "Laden van een EV (ERE's)",
+            "description": "Verkoop je ERE's (emissiereductie-eenheden) voor de stroom die je laadpaal gebruikt, dan levert elke geladen kWh een bedrag extra op. Die opbrengst gaat af van de kosten van de laadpaal en van de effectieve kosten van het huis, en telt mee als verdiend.",
+            "data": {
+              "ev_charger": "Laadpaal",
+              "ere_offset": "Opbrengst per geladen kWh",
+              "ere_offset_sensor": "Opbrengst per kWh uit een sensor"
+            },
+            "data_description": {
+              "ev_charger": "De vermogenssensor van je laadpaal. Die moet een van de gevolgde apparaten zijn.",
+              "ere_offset": "Wat een geladen kWh oplevert, bijv. 0,08. Een negatief bedrag werkt als kosten per kWh.",
+              "ere_offset_sensor": "Optioneel: een sensor of invoernummer met het bedrag per kWh, voor een prijs die verandert. Zolang die niet beschikbaar is, geldt het vaste bedrag hierboven."
+            }
+          },
           "advanced": {
             "name": "Geavanceerd",
             "data": {
@@ -80,7 +94,8 @@
     "error": {
       "unsupported_unit": "{sensor} rapporteert vermogen in {unit}. Gebruik een sensor die W of kW rapporteert.",
       "inverter_sign": "De AC-sensor van de omvormer heeft het verkeerde teken voor deze instelling terwijl de panelen opwekken. Zet 'AC-sensor omvormer omkeren' om.",
-      "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn."
+      "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn.",
+      "ev_charger_not_tracked": "De laadpaal {sensor} moet ook een van de gevolgde apparaten zijn."
     },
     "abort": {
       "single_instance_allowed": "Solar & Battery Financials is al ingesteld."
@@ -93,7 +108,8 @@
         "menu_options": {
           "sensors": "Sensoren",
           "export": "Correcties terugleverprijs",
-          "devices": "Apparaten"
+          "devices": "Apparaten",
+          "ev": "Laden van een EV (ERE's)"
         }
       },
       "sensors": {
@@ -160,12 +176,28 @@
       "device_parents": {
         "title": "Apparaathiërarchie",
         "description": "Wordt een apparaat al gemeten door een ander apparaat, zoals een vaatwasserstekker achter een tussenmeter van de keuken? Dan is het een subapparaat: het krijgt eigen kosten, maar telt niet dubbel mee in het niet-gevolgde totaal."
+      },
+      "ev": {
+        "title": "Laden van een EV (ERE's)",
+        "description": "Verkoop je ERE's (emissiereductie-eenheden) voor de stroom die je laadpaal gebruikt, dan levert elke geladen kWh een bedrag extra op. Die opbrengst gaat af van de kosten van de laadpaal en van de effectieve kosten van het huis, en telt mee als verdiend.",
+        "data": {
+          "ev_charger": "Laadpaal",
+          "ere_offset": "Opbrengst per geladen kWh",
+          "ere_offset_sensor": "Opbrengst per kWh uit een sensor"
+        },
+        "data_description": {
+          "ev_charger": "De vermogenssensor van je laadpaal. Die moet een van de gevolgde apparaten zijn.",
+          "ere_offset": "Wat een geladen kWh oplevert, bijv. 0,08. Een negatief bedrag werkt als kosten per kWh.",
+          "ere_offset_sensor": "Optioneel: een sensor of invoernummer met het bedrag per kWh, voor een prijs die verandert. Zolang die niet beschikbaar is, geldt het vaste bedrag hierboven."
+        }
       }
     },
     "error": {
       "unsupported_unit": "{sensor} rapporteert vermogen in {unit}. Gebruik een sensor die W of kW rapporteert.",
       "inverter_sign": "De AC-sensor van de omvormer heeft het verkeerde teken voor deze instelling terwijl de panelen opwekken. Zet 'AC-sensor omvormer omkeren' om.",
-      "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn."
+      "parent_not_independent": "Een apparaat waar andere apparaten deel van zijn, moet zelf onafhankelijk zijn.",
+      "ev_charger_not_tracked": "De laadpaal {sensor} moet ook een van de gevolgde apparaten zijn.",
+      "no_tracked_devices": "Volg eerst de vermogenssensor van je laadpaal onder Apparaten."
     }
   },
   "services": {

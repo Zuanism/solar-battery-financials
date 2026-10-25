@@ -15,11 +15,16 @@ CONF_DEVICE_NAMES = "device_names"
 CONF_SUB_DEVICES = "sub_devices"
 CONF_DEVICE_PARENTS = "device_parents"  # {sub-device entity: parent device entity}
 CONF_INVERT_INVERTER_AC = "invert_inverter_ac"
+# EV charging: a tracked device whose charged kWh earn an offset per kWh (e.g. EREs sold).
+CONF_EV_CHARGER = "ev_charger"
+CONF_ERE_OFFSET = "ere_offset"  # fixed amount per kWh charged
+CONF_ERE_OFFSET_SENSOR = "ere_offset_sensor"  # optional sensor that overrides the fixed amount
 
 DEFAULT_FEED_IN_PENALTY = 0.0
 DEFAULT_FEED_IN_PENALTY_PERCENT = 0.0
 DEFAULT_PREFIX = "sbf_"
 DEFAULT_INVERT_INVERTER_AC = False
+DEFAULT_ERE_OFFSET = 0.0
 
 # Accepted power units and their factor to watts.
 POWER_UNIT_FACTORS = {"W": 1.0, "kW": 1000.0}

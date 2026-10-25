@@ -61,6 +61,9 @@ The setup form is divided into sections. The two collapsed ones can usually be l
 | Export price adjustments *(collapsed)* | Fixed deduction | No | Amount per kWh deducted from the export price (e.g. `0.02`). Default `0`. |
 | | Percentage deduction | No | Percentage deducted from the export price (e.g. `20` if you are paid 80 % of the tariff). Default `0`. |
 | Devices | Devices to track | No | Power sensors of individual appliances or circuits (smart plugs, sub-meters). |
+| EV charging (EREs) *(collapsed)* | EV charger | No | The power sensor of your EV charger, if you sell EREs (or get something else per kWh charged). It must also be one of the tracked devices. See [4.8](#48-ev-charging-and-eres). |
+| | Income per kWh charged | No | What each kWh the charger charges earns, e.g. `0.08`. A negative amount acts as a cost per kWh. Default `0`. |
+| | Income per kWh from a sensor | No | A sensor or input number with that amount, for a price that changes. While it is unavailable, the fixed amount is used. |
 | Advanced *(collapsed)* | Entity ID prefix | No | Text put in front of every entity ID the integration creates. Default `sbf_`. Only set here, because changing it later would change every entity ID. |
 
 The two export deductions combine as:
@@ -91,6 +94,7 @@ If you track devices, two short steps follow:
 - **Sensors:** grid, prices, solar, battery, inverter.
 - **Export price adjustments.**
 - **Devices:** which devices are tracked, their names and hierarchy.
+- **EV charging (EREs):** the EV charger and what each kWh it charges earns. The charger is picked from the tracked devices, so track it under **Devices** first.
 
 Each saves on its own, and the integration reloads itself; no restart needed. Clearing an optional field removes that setting.
 
@@ -128,6 +132,7 @@ Running totals (integrals) of the rates above. They have `state_class: total`, s
 | Solar Only Earnings Cumulative | `sensor.sbf_solar_only_earnings_rate_cumulative` | € | Solar-only earnings |
 | Battery Added Value Cumulative | `sensor.sbf_battery_added_value_rate_cumulative` | € | Battery added value |
 | Inverter Losses Cost Cumulative | `sensor.sbf_inverter_loss_cost_rate_cumulative` | € | Money lost to inverter conversion |
+| ERE Income Cumulative | `sensor.sbf_ere_income_rate_cumulative` | € | What the EV charger's kWh earned (only with an EV charger, see [4.8](#48-ev-charging-and-eres)) |
 | Net Grid Cost Cumulative | `sensor.sbf_net_grid_cost_rate_cumulative` | € | Your net bill (imports minus export revenue) |
 | Net Grid Energy Cumulative | `sensor.sbf_net_grid_energy_rate_cumulative` | kWh | Net grid energy (imports minus exports; can go negative) |
 | Total System Cost Cumulative | `sensor.sbf_total_system_cost_rate_cumulative` | € | House consumption valued at the effective price |
@@ -266,6 +271,26 @@ The loss is valued at the import price when importing, otherwise at the effectiv
 
 Cumulative sensors integrate their rate with the left Riemann sum: each time the inputs change (and at least once a minute), the rate that was in effect since the previous calculation is multiplied by the elapsed time and added to the total.
 
+### 4.8 EV charging and EREs
+
+If you sell EREs (emission reduction units, *emissiereductie-eenheden*) for the electricity your EV charger uses, every kWh it charges earns an amount on top of what you saved. With an **EV charger** configured (see [2.1](#21-setup)):
+
+```text
+ERE income rate = Charger power (kW) × Income per kWh
+```
+
+That income:
+
+- comes off the **charger's cost**: its cost per kWh is the effective price minus the income per kWh;
+- comes off the **Effective cost** (Total System Cost) of the house, and off whatever the charger counts towards at the top level: the charger itself, the tracked device it is part of, or Untracked if its parent isn't tracked. So devices plus Untracked still add up to the house total;
+- counts as **earned**: System earnings = Solar-only earnings + Battery added value + ERE income. Solar-only earnings and battery added value don't change;
+- has its own total, **ERE Income Cumulative**;
+- doesn't change the **net bill**: it isn't on your energy bill.
+
+The income per kWh is either a fixed amount, or taken from a sensor or input number (for a price that changes per batch you sell). While that sensor is unavailable, the fixed amount is used; it never pauses the totals.
+
+If you stop tracking the charger under **Devices**, the ERE income stops too (the setting is kept for when you track it again). Only one charger can be configured. To add EREs for a period before you configured this, use [Recalculate history](#55-recalculating-history) with `previous_settings: {ev_charger: null}`.
+
 ---
 
 ## 5. Behaviour and data handling
@@ -297,7 +322,8 @@ When no baselines were saved yet (after upgrading from a version that didn't sto
 
 - **Renaming** a tracked device changes its display name only. Sensors are identified by the tracked power sensor, so entity IDs and history stay.
 - **Adding** a device creates its two cumulative sensors, starting at 0.
-- **Removing** a device removes its sensors from the entity registry. Their long-term statistics remain in the database until you delete them under **Developer tools → Statistics**.
+- **Removing** a device removes its sensors and its "<name> Financials" device from the registries. Their long-term statistics remain in the database until you delete them under **Developer tools → Statistics**.
+- **Replacing** a device's power sensor (a new charger, or a renamed sensor) counts as removing the old device and adding a new one. Give the new one the same name and its sensors keep the same entity IDs, so their totals and history continue.
 
 ### 5.5 Recalculating history
 
@@ -314,7 +340,7 @@ After fixing a configuration mistake, the action **Solar & Battery Financials: R
 
 **Why a difference.** Totals the mistake didn't affect stay exactly as recorded. And both calculations use the tracked devices as they are now, so devices that were added, removed or replaced since then (also under the same name) are the same in both and cancel out: their consumption isn't moved to or from Untracked. One limitation: a device that wasn't tracked yet, or was replaced, during the period gets no correction of its own cost; its share of the correction stays in Untracked, so devices and Untracked still add up to the house total.
 
-**How exact it is.** Within the recorder's state history (`purge_keep_days`, 10 days by default) every recorded input change is replayed in order, which gives exactly what the integration would have recorded with the right settings. Before that only the inputs' hourly averages are left, and each hour is calculated from those: the correction is then approximate (in a test with a wrong inverter sign and a battery trading on 15-minute prices, the earnings correction came out about 12 % too small). Hours for which an input has no statistics, and periods in which Home Assistant was down, keep what was recorded.
+**How exact it is.** Within the recorder's state history (`purge_keep_days`, 10 days by default) every recorded input change is replayed in order, which gives exactly what the integration would have recorded with the right settings. Before that only the inputs' hourly averages are left, and each hour is calculated from those: the correction is then approximate (in a test with a wrong inverter sign and a battery trading on 15-minute prices, the earnings correction came out about 12 % too small). Hours for which an input has no statistics, and periods in which Home Assistant was down, keep what was recorded. A total that didn't exist yet during part of the period (such as ERE Income Cumulative, created when you configure an EV charger) gets new statistics rows for those hours, as far as Home Assistant was running then (judged by System Earnings Cumulative).
 
 **One period per difference.** `previous_settings` applies to every hour of the period. So set `end` to the moment of the fix: a later `end` would "correct" hours that were already right. If something else changed halfway, split the period into runs that each have their own `previous_settings`.
 
@@ -330,7 +356,9 @@ data:
   dry_run: true
 ```
 
-Keys for `previous_settings`: `grid_sensor`, `price_sensor`, `export_price_sensor`, `solar_sensor`, `ac_solar_sensor`, `battery_sensor`, `inverter_ac_sensor` (an entity ID, or `null` if it wasn't set), `invert_inverter_ac`, `feed_in_penalty` and `feed_in_penalty_percent`.
+Keys for `previous_settings`: `grid_sensor`, `price_sensor`, `export_price_sensor`, `solar_sensor`, `ac_solar_sensor`, `battery_sensor`, `inverter_ac_sensor` (an entity ID, or `null` if it wasn't set), `invert_inverter_ac`, `feed_in_penalty`, `feed_in_penalty_percent`, `ev_charger`, `ere_offset` and `ere_offset_sensor`.
+
+**Adding EREs afterwards.** If you configured the EV charger only now, but sold EREs for charging since 1 July, `previous_settings: {ev_charger: null}` with that `start` adds the ERE income to the charger, the house total and the earnings for that period. Use the current income per kWh, or split the period if it changed.
 
 **Reading the result.** The response repeats the `previous_settings` that differ from the current ones, lists the number of exact, approximate and skipped hours, and per sensor the recorded and recalculated increase over the period and the `correction`. For approximate hours, `approximation_check` compares what was recorded with what the hourly averages give with the previous settings: the further apart they are, the less precise the correction of those hours. Check the numbers, then run it again with `dry_run: false`.
 
@@ -388,7 +416,7 @@ Past periods are loaded from long-term statistics. While one loads, the previous
 
 For the chosen period it shows:
 
-- **Gross cost to net bill:** a waterfall at the top, written out as a sum: **Gross cost − Solar earned − Battery earned = Net bill**, with the operators between the bars. Gross cost (what the house would cost without solar and battery) and Net bill are solid bars; the earned amounts are light outlined boxes stepping down from Gross. If solar or the battery cost money in that period, its step turns into "+ … cost" (in red). A bracket over the two earned steps shows their combined result ("Total earned", or "Total cost" in red). A net bill below zero (you earned money) is shown in green.
+- **Gross cost to net bill:** a waterfall at the top, written out as a sum: **Gross cost − Solar earned − Battery earned = Net bill**, with the operators between the bars. With ERE income (an EV charger, see [4.8](#48-ev-charging-and-eres)) the sum gets one more step and ends at the net cost after EREs: **… − EREs earned = Net after EREs**. Gross cost (what the house would cost without solar and battery) and Net bill are solid bars; the earned amounts are light outlined boxes stepping down from Gross. If solar or the battery cost money in that period, its step turns into "+ … cost" (in red). A bracket over the two earned steps shows their combined result ("Total earned", or "Total cost" in red). A net bill below zero (you earned money) is shown in green.
 - **Effective cost breakdown:** a Sankey diagram under the waterfall, starting from **Effective cost** (the house's consumption at the effective price, with its kWh and average price per kWh) and splitting it over the **devices** and **Untracked**. Devices with sub-devices get a middle column, from which their sub-devices and the parent's remainder ("Other": measured by the parent, but not by any of its sub-devices) fan out; other devices go straight to the last column. The style follows Home Assistant's energy Sankey: thin coloured bars, heights proportional to money, bands fading from one colour to the next, labels with the amount in grey. Hovering shows exact values, and tapping a device opens its history. On narrow screens (phones) the diagram runs top to bottom, with labels under the bars; very small items are drawn without a label.
 - **Devices and Sub-devices:** folded behind "Show device details (N devices, M sub-devices)" by default, since the diagram already names every device; the choice is remembered per browser. The lists add kWh and average price per device, sorted by the selected unit. Each icon has the device's own colour, the same as in the Sankey, so a device looks the same everywhere. Devices with no cost and no usage fold into a "+N idle" line.
 
@@ -404,7 +432,7 @@ Gross cost, Solar earned, Battery earned, Total earned, Net bill, Effective cost
 - **Period tabs** (**Daily / Weekly / Monthly / Yearly / All-Time**); Daily, Weekly and Monthly also have span chips (e.g. 7 / 14 / 30 / 60 / 90 days). Only the selected tab's charts are loaded.
 - **All-Time** shows your whole history as lines with one point per day, with pills **7-day avg / 30-day avg** (default) **/ 90-day avg / Total**. With a window, each day's point covers the window up to that day: cost and energy as the average per day (titles then read "€/day", "kWh/day"), the average price as the window's cost divided by its kWh (so days with little use can't distort it). Early days with less history than the window average over what is available. **Total** is the running total (and running average price) since the start. Pages with two series (Total earnings, Gross cost) show two lines instead of a stack.
 - **Device pages** show three titled charts: Cost (€), Energy (kWh) and Average price (€/kWh).
-- **Earnings pages** show Solar and Battery stacked for Total; the Gross cost page shows Net bill and Earned stacked (together they make up the gross cost).
+- **Earnings pages** show Solar and Battery (and EREs, with an EV charger) stacked for Total; the Gross cost page shows Net bill, Solar and Battery stacked (together they make up the gross cost).
 - **Colours** on cost, energy and price bars compare the bars shown with each other: green below 0.8× their average, orange up to 1.5×, red above; zero bars are grey and unlabelled. The current, still running day/week/month/year is left out of that average and drawn pale with a normal outline, as "in progress" (otherwise it would nearly always look cheap). Earnings charts use fixed solar/battery colours.
 - **Tap a bar** to open the Financials tab on that bar's day, week, month or year.
 - **Links between a device's pages:** a device's cost history has a **Power →** link to its power page, and its power page a **Cost history →** link back. The back arrow still returns to each page's own tab.
@@ -484,6 +512,13 @@ tabs:
 ## 7. Upgrading and version history
 
 Migrations run automatically the first time a new version starts, including when upgrading from 1.2.x. Sensors that are no longer provided are removed from the entity registry; their long-term statistics are kept. Device sensors keep their entity IDs and history, but customisations made to them in the entity registry (a changed entity ID, name or icon) are not carried over from versions before 1.4.0.
+
+### 2.6.0: EV charging (EREs)
+
+- New option **EV charging (EREs)**: pick your EV charger and what each kWh it charges earns, as a fixed amount or from a sensor. That income comes off the charger's cost and the house's effective cost, counts as earned, and gets its own total **ERE Income Cumulative** (see [4.8](#48-ev-charging-and-eres)). The dashboard shows it as an extra step in the waterfall and on the Total earnings page.
+- The Gross cost history page now stacks Net bill, Solar and Battery (instead of Net bill and Earned), so ERE income doesn't count towards the gross cost.
+- **Recalculate history** accepts the new settings, so EREs can be added for a period afterwards. A total that didn't exist yet during the period (such as ERE Income, created when you configure the charger) gets statistics rows for the hours in which Home Assistant was running.
+- Fix: replacing or renaming a tracked device's power sensor left an empty "<name> Financials" device behind. Such devices are now removed when the integration loads, including ones left by earlier versions.
 
 ### 2.5.0: recalculate history
 

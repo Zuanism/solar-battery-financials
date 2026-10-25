@@ -27,6 +27,9 @@ from .const import (
     CONF_BATTERY_SENSOR,
     CONF_DEVICE_NAMES,
     CONF_DEVICE_PARENTS,
+    CONF_ERE_OFFSET,
+    CONF_ERE_OFFSET_SENSOR,
+    CONF_EV_CHARGER,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
@@ -37,6 +40,7 @@ from .const import (
     CONF_SOLAR_SENSOR,
     CONF_SUB_DEVICES,
     CONF_TRACKED_DEVICES,
+    DEFAULT_ERE_OFFSET,
     DEFAULT_INVERT_INVERTER_AC,
     POWER_UNIT_FACTORS,
     RATE_WRITE_INTERVAL_SECONDS,
@@ -66,6 +70,9 @@ class FinancialManager:
         sub_devices: list[str] | None = None,
         device_names: dict[str, str] | None = None,
         ac_solar: str | None = None,
+        ev_charger: str | None = None,
+        ere_offset: float = 0.0,
+        ere_offset_sensor: str | None = None,
     ) -> None:
         self.hass = hass
         self.tracked_devices = tracked_devices or []
@@ -83,6 +90,11 @@ class FinancialManager:
         self.invert_inverter_ac = invert_inverter_ac
         self.penalty_fixed = penalty
         self.penalty_pct = penalty_pct
+        # ERE income: only while the EV charger is one of the tracked devices.
+        self.ev_charger = ev_charger if ev_charger in self.tracked_devices else None
+        self.ere_offset_fixed = ere_offset or 0.0
+        self.ere_offset_sensor_id = ere_offset_sensor if self.ev_charger else None
+        self._ere_offset_from_sensor: float | None = None
 
         # Input entity -> value keys it feeds. System inputs are "core": while any
         # of them is unavailable the totals stop integrating instead of treating
@@ -102,6 +114,8 @@ class FinancialManager:
         self._core_inputs = set(self._input_keys)
         for dev in self.tracked_devices:
             self._input_keys.setdefault(dev, []).append(device_key(dev, "power"))
+        if self.ere_offset_sensor_id:  # not core: while unavailable, the fixed amount is used
+            self._input_keys.setdefault(self.ere_offset_sensor_id, [])
         self.input_entities = list(self._input_keys)
         self._unavailable: set[str] = set()
 
@@ -129,6 +143,8 @@ class FinancialManager:
             "inverter_loss_power": 0.0,
             "inverter_loss_cost_rate": 0.0,
             "inverter_efficiency": 96.0,
+            "ere_offset": 0.0,
+            "ere_income_rate": 0.0,
         }
         for dev in self.tracked_devices:
             for kind in ("power", "cost_rate", "energy_rate"):
@@ -161,6 +177,9 @@ class FinancialManager:
             config.get(CONF_SUB_DEVICES, []),
             config.get(CONF_DEVICE_NAMES, {}),
             config.get(CONF_AC_SOLAR_SENSOR),
+            config.get(CONF_EV_CHARGER),
+            config.get(CONF_ERE_OFFSET, DEFAULT_ERE_OFFSET),
+            config.get(CONF_ERE_OFFSET_SENSOR),
         )
         manager.device_parents = config.get(CONF_DEVICE_PARENTS) or {}
         return manager
@@ -240,6 +259,9 @@ class FinancialManager:
         Unavailable core inputs keep their last value and pause integration;
         unavailable tracked devices count as 0 W.
         """
+        if entity_id == self.ere_offset_sensor_id:  # an amount per kWh, not a power
+            self._ere_offset_from_sensor = val
+            return
         if val is not None and entity_id not in (self.price_id, self.export_price_id):
             # Power inputs may be in W or kW; everything is calculated in W.
             val *= POWER_UNIT_FACTORS.get(unit, 1.0)
@@ -384,6 +406,34 @@ class FinancialManager:
         self.values["untracked_power"] = untracked_power
         self.values["untracked_cost_rate"] = (untracked_power / 1000.0) * effective_price
         self.values["untracked_energy_rate"] = untracked_power / 1000.0
+        self._apply_ere_income()
+
+    def _apply_ere_income(self) -> None:
+        """Take the ERE income of the EV charger off its cost and the house total.
+
+        The income also comes off whatever its consumption is counted in at the top
+        level (the charger itself, its tracked parent, or Untracked), so devices plus
+        Untracked keep adding up to the house total. It is added to the system
+        earnings in _calculate_earnings.
+        """
+        offset = self._ere_offset_from_sensor
+        if offset is None:
+            offset = self.ere_offset_fixed
+        self.values["ere_offset"] = offset if self.ev_charger else 0.0
+        if not self.ev_charger:
+            self.values["ere_income_rate"] = 0.0
+            return
+        charger = self.ev_charger
+        income = max(self.values[device_key(charger, "power")], 0.0) / 1000.0 * offset
+        self.values["ere_income_rate"] = income
+        self.values[device_key(charger, "cost_rate")] -= income
+        if charger in self.sub_devices:
+            parent = self.device_parents.get(charger)
+            if parent in self.tracked_devices and parent not in self.sub_devices:
+                self.values[device_key(parent, "cost_rate")] -= income
+            else:
+                self.values["untracked_cost_rate"] -= income
+        self.values["total_system_cost_rate"] -= income
 
     def _calculate_earnings(
         self,
@@ -423,6 +473,9 @@ class FinancialManager:
         # Formula: battery_added = system_earnings - solar_only
         battery_added = system_earnings - solar_only
         self.values["battery_added_value_rate"] = battery_added
+
+        # ERE income counts as earned too, next to (not part of) solar and battery.
+        self.values["system_earnings_rate"] = system_earnings + self.values["ere_income_rate"]
 
     def _calculate_inverter_losses(
         self,

@@ -1,8 +1,8 @@
 """Config and options flow for Solar & Battery Financials.
 
 Setup: one form with sections (grid & prices, system, export adjustments, devices,
-advanced), then device names and device hierarchy when devices are tracked.
-Options: a menu (sensors / export prices / devices) so a single change doesn't
+EV charging, advanced), then device names and device hierarchy when devices are tracked.
+Options: a menu (sensors / export prices / devices / EV charging) so a single change doesn't
 require walking through every step. The entity prefix is only set at setup,
 because changing it later would change every entity ID.
 """
@@ -23,6 +23,9 @@ from .const import (
     CONF_BATTERY_SENSOR,
     CONF_DEVICE_NAMES,
     CONF_DEVICE_PARENTS,
+    CONF_ERE_OFFSET,
+    CONF_ERE_OFFSET_SENSOR,
+    CONF_EV_CHARGER,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
@@ -34,6 +37,7 @@ from .const import (
     CONF_SOLAR_SENSOR,
     CONF_SUB_DEVICES,
     CONF_TRACKED_DEVICES,
+    DEFAULT_ERE_OFFSET,
     DEFAULT_FEED_IN_PENALTY,
     DEFAULT_FEED_IN_PENALTY_PERCENT,
     DEFAULT_INVERT_INVERTER_AC,
@@ -50,6 +54,7 @@ SYSTEM_KEYS = (
     CONF_SOLAR_SENSOR, CONF_AC_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_INVERTER_AC_SENSOR, CONF_INVERT_INVERTER_AC,
 )
 EXPORT_KEYS = (CONF_FEED_IN_PENALTY, CONF_FEED_IN_PENALTY_PERCENT)
+EV_KEYS = (CONF_EV_CHARGER, CONF_ERE_OFFSET, CONF_ERE_OFFSET_SENSOR)
 POWER_KEYS = (CONF_GRID_SENSOR, CONF_SOLAR_SENSOR, CONF_AC_SOLAR_SENSOR, CONF_BATTERY_SENSOR, CONF_INVERTER_AC_SENSOR)
 
 PARENT_NONE = "none"  # independent device
@@ -98,6 +103,25 @@ def _export_schema(cfg: dict[str, Any]) -> vol.Schema:
     })
 
 
+def _ev_schema(cfg: dict[str, Any], devices: list[str] | None = None) -> vol.Schema:
+    """EV charger (one of the tracked devices) and what each kWh it charges earns.
+
+    `devices` limits the charger choice to the tracked devices (options flow); during
+    setup they are picked in the same form, so the choice is checked on submit.
+    """
+    charger = (
+        selector.EntitySelector(selector.EntitySelectorConfig(include_entities=devices))
+        if devices else _sensor()
+    )
+    return vol.Schema({
+        _marker(cfg, CONF_EV_CHARGER): charger,
+        _marker(cfg, CONF_ERE_OFFSET, default=DEFAULT_ERE_OFFSET): _number("/kWh", 0.001),
+        _marker(cfg, CONF_ERE_OFFSET_SENSOR): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=["sensor", "input_number", "number"])
+        ),
+    })
+
+
 def _devices_schema(cfg: dict[str, Any]) -> vol.Schema:
     return vol.Schema({_marker(cfg, CONF_TRACKED_DEVICES, default=[]): _sensor(multiple=True)})
 
@@ -141,6 +165,10 @@ def _validate(hass: HomeAssistant, cfg: dict[str, Any]) -> tuple[dict[str, str],
         invert = bool(cfg.get(CONF_INVERT_INVERTER_AC))
         if (inverter < -50 and not invert) or (inverter > 50 and invert):
             return {"base": "inverter_sign"}, {}
+
+    charger = cfg.get(CONF_EV_CHARGER)
+    if charger and charger not in (cfg.get(CONF_TRACKED_DEVICES) or []):
+        return {"base": "ev_charger_not_tracked"}, {"sensor": charger}
     return {}, {}
 
 
@@ -252,7 +280,7 @@ class SolarBatteryFinancialsConfigFlow(DeviceStepsMixin, config_entries.ConfigFl
             errors, placeholders = _validate(self.hass, cfg)
             if not errors:
                 self.flow_data = {
-                    **_with_cleared(cfg, GRID_KEYS + SYSTEM_KEYS + EXPORT_KEYS),
+                    **_with_cleared(cfg, GRID_KEYS + SYSTEM_KEYS + EXPORT_KEYS + EV_KEYS),
                     CONF_TRACKED_DEVICES: cfg.get(CONF_TRACKED_DEVICES) or [],
                     CONF_PREFIX: cfg.get(CONF_PREFIX) or DEFAULT_PREFIX,
                 }
@@ -265,6 +293,7 @@ class SolarBatteryFinancialsConfigFlow(DeviceStepsMixin, config_entries.ConfigFl
             vol.Required("system"): section(_system_schema(cfg), {"collapsed": False}),
             vol.Required("export"): section(_export_schema(cfg), {"collapsed": True}),
             vol.Required("devices"): section(_devices_schema(cfg), {"collapsed": False}),
+            vol.Required("ev"): section(_ev_schema(cfg), {"collapsed": True}),
             vol.Required("advanced"): section(
                 vol.Schema({_marker(cfg, CONF_PREFIX, default=DEFAULT_PREFIX): str}), {"collapsed": True}
             ),
@@ -291,7 +320,7 @@ class SolarBatteryFinancialsOptionsFlow(DeviceStepsMixin, OptionsFlow):
         return self._save(self.flow_data)
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["sensors", "export", "devices"])
+        return self.async_show_menu(step_id="init", menu_options=["sensors", "export", "devices", "ev"])
 
     async def async_step_sensors(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -315,6 +344,23 @@ class SolarBatteryFinancialsOptionsFlow(DeviceStepsMixin, OptionsFlow):
         if user_input is not None:
             return self._save(_with_cleared(user_input, EXPORT_KEYS))
         return self.async_show_form(step_id="export", data_schema=_export_schema(self._current()))
+
+    async def async_step_ev(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        placeholders: dict[str, str] = {}
+        cfg = self._current()
+        devices = list(cfg.get(CONF_TRACKED_DEVICES) or [])
+        if user_input is not None:
+            changes = _with_cleared(user_input, EV_KEYS)
+            errors, placeholders = _validate(self.hass, {CONF_TRACKED_DEVICES: devices, **changes})
+            if not errors:
+                return self._save(changes)
+            cfg = {**cfg, **changes}
+        if not devices:
+            errors["base"] = "no_tracked_devices"
+        return self.async_show_form(
+            step_id="ev", data_schema=_ev_schema(cfg, devices), errors=errors, description_placeholders=placeholders
+        )
 
     async def async_step_devices(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

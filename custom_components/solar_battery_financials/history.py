@@ -58,6 +58,9 @@ import homeassistant.util.dt as dt_util
 from .const import (
     CONF_AC_SOLAR_SENSOR,
     CONF_BATTERY_SENSOR,
+    CONF_ERE_OFFSET,
+    CONF_ERE_OFFSET_SENSOR,
+    CONF_EV_CHARGER,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_FEED_IN_PENALTY,
     CONF_FEED_IN_PENALTY_PERCENT,
@@ -92,6 +95,9 @@ PREVIOUS_SETTINGS_SCHEMA = vol.Schema(
         vol.Optional(CONF_INVERT_INVERTER_AC): cv.boolean,
         vol.Optional(CONF_FEED_IN_PENALTY): vol.Coerce(float),
         vol.Optional(CONF_FEED_IN_PENALTY_PERCENT): vol.Coerce(float),
+        vol.Optional(CONF_EV_CHARGER): _SENSOR_SETTING,
+        vol.Optional(CONF_ERE_OFFSET): vol.Coerce(float),
+        vol.Optional(CONF_ERE_OFFSET_SENSOR): _SENSOR_SETTING,
     }
 )
 
@@ -242,8 +248,19 @@ async def async_recalculate(
             _replay_states, hass, manager, previous, keys, states_from, end, replay
         )
 
-    recorded = await recorder.async_add_executor_job(_read_rows, hass, stat_ids, start, now)
-    plans = {s.entity_id: _plan(recorded.get(s.entity_id), replay, s._source_key, start, end) for s in sensors}  # noqa: SLF001
+    # System Earnings always exists: its rows tell when Home Assistant was running, for
+    # totals that didn't exist yet during (part of) the period.
+    reference = next(
+        s.entity_id for s in hass.data[DOMAIN][entry.entry_id] if s._source_key == "system_earnings_rate"  # noqa: SLF001
+    )
+    recorded = await recorder.async_add_executor_job(
+        _read_rows, hass, sorted({*stat_ids, reference}), start, now
+    )
+    running = _running(recorded.get(reference), start, end)
+    plans = {
+        s.entity_id: _plan(recorded.get(s.entity_id), replay, s._source_key, start, end, running)  # noqa: SLF001
+        for s in sensors
+    }
 
     result: dict[str, Any] = {
         "start": dt_util.as_local(start).isoformat(),
@@ -289,7 +306,9 @@ async def async_recalculate(
     return result
 
 
-_SETTING_DEFAULTS = {CONF_INVERT_INVERTER_AC: False, CONF_FEED_IN_PENALTY: 0.0, CONF_FEED_IN_PENALTY_PERCENT: 0.0}
+_SETTING_DEFAULTS = {
+    CONF_INVERT_INVERTER_AC: False, CONF_FEED_IN_PENALTY: 0.0, CONF_FEED_IN_PENALTY_PERCENT: 0.0, CONF_ERE_OFFSET: 0.0,
+}
 
 
 def _differences(config: dict[str, Any], previous_settings: dict[str, Any]) -> dict[str, Any]:
@@ -550,8 +569,56 @@ def _increases(rows: list[dict[str, Any]]) -> dict[float, float]:
     return increases
 
 
-def _plan(rows: dict[str, list] | None, replay: Replay, key: str, start: datetime, end: datetime) -> Plan:
+@dataclass
+class Running:
+    """When Home Assistant was running in the period: the hours and 5-minute slots it compiled."""
+
+    hours: set[float] = field(default_factory=set)
+    slots: dict[float, list[float]] = field(default_factory=dict)  # hour start ts -> slot start ts
+
+
+def _running(rows: dict[str, list] | None, start: datetime, end: datetime) -> Running:
+    running = Running()
+    start_ts, end_ts, hour_s = start.timestamp(), end.timestamp(), HOUR.total_seconds()
+    for row in (rows or {}).get("hour", []):
+        if start_ts <= row["start"] < end_ts:
+            running.hours.add(row["start"])
+    for row in (rows or {}).get("5minute", []):
+        if start_ts <= row["start"] < end_ts:
+            running.slots.setdefault(row["start"] - row["start"] % hour_s, []).append(row["start"])
+    return running
+
+
+def _add_new_rows(rows: dict[str, list], replay: Replay, start: datetime, end: datetime, running: Running) -> dict[str, list]:
+    """Rows with nothing recorded, for the hours before a total existed (e.g. one added later).
+
+    Only for hours in which Home Assistant was running (per the reference total), and only
+    before the total's first row: a gap in an existing total (Home Assistant was down)
+    stays a gap. Each new row starts at 0, so its whole recalculated value is a correction,
+    and the plan creates it. The row before the first one is a 0 too, so increases work.
+    """
+    existing = [r["start"] for table in ("hour", "5minute") for r in rows[table]]
+    first = min(existing, default=end.timestamp())
+    start_ts, hour_s = start.timestamp(), HOUR.total_seconds()
+    if first <= start_ts:
+        return rows
+    new_hours = [h for h in sorted(running.hours | set(running.slots)) if h + hour_s <= first]
+    if not new_hours:
+        return rows
+    zero = lambda ts: {"start": ts, "state": 0.0, "sum": 0.0, "new": True}  # noqa: E731
+    hour = [zero(new_hours[0] - hour_s)] + [zero(h) for h in new_hours if h in running.hours]
+    short = [zero(new_hours[0] - SLOT.total_seconds())] + [
+        zero(t) for h in new_hours if h in replay.exact_hours for t in running.slots.get(h, [])
+    ]
+    return {"hour": hour + rows["hour"], "5minute": short + rows["5minute"]}
+
+
+def _plan(
+    rows: dict[str, list] | None, replay: Replay, key: str, start: datetime, end: datetime, running: Running | None = None
+) -> Plan:
     plan = Plan()
+    if running is not None:
+        rows = _add_new_rows(rows or {"hour": [], "5minute": []}, replay, start, end, running)
     if not rows:
         return plan
     start_ts, end_ts, hour_s = start.timestamp(), end.timestamp(), HOUR.total_seconds()

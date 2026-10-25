@@ -57,6 +57,20 @@
               "tracked_devices": "Power sensors of appliances or circuits (smart plugs, sub-meters). Optional."
             }
           },
+          "ev": {
+            "name": "EV charging (EREs)",
+            "description": "If you sell EREs (emission reduction units) for the energy your EV charger uses, every kWh it charges earns an amount on top. That income comes off the charger's cost and the house's effective cost, and counts as earned.",
+            "data": {
+              "ev_charger": "EV charger",
+              "ere_offset": "Income per kWh charged",
+              "ere_offset_sensor": "Income per kWh from a sensor"
+            },
+            "data_description": {
+              "ev_charger": "The power sensor of your charger. It must be one of the tracked devices.",
+              "ere_offset": "What a kWh charged earns, e.g. 0.08. A negative amount acts as a cost per kWh.",
+              "ere_offset_sensor": "Optional: a sensor or input number with the amount per kWh, for a price that changes. While it is unavailable, the fixed amount above is used."
+            }
+          },
           "advanced": {
             "name": "Advanced",
             "data": {
@@ -80,7 +94,8 @@
     "error": {
       "unsupported_unit": "{sensor} reports power in {unit}. Use a sensor that reports W or kW.",
       "inverter_sign": "The inverter AC sensor has the wrong sign for this setting while the panels are producing. Toggle 'Invert inverter AC sensor'.",
-      "parent_not_independent": "A device that other devices are part of must itself be independent."
+      "parent_not_independent": "A device that other devices are part of must itself be independent.",
+      "ev_charger_not_tracked": "The EV charger {sensor} must also be one of the tracked devices."
     },
     "abort": {
       "single_instance_allowed": "Solar & Battery Financials is already set up."
@@ -93,7 +108,8 @@
         "menu_options": {
           "sensors": "Sensors",
           "export": "Export price adjustments",
-          "devices": "Devices"
+          "devices": "Devices",
+          "ev": "EV charging (EREs)"
         }
       },
       "sensors": {
@@ -160,12 +176,28 @@
       "device_parents": {
         "title": "Device hierarchy",
         "description": "Is a device measured by another device, like a dishwasher plug behind a kitchen circuit meter? Then it's a sub-device: it gets its own costs, but isn't counted twice in the untracked total."
+      },
+      "ev": {
+        "title": "EV charging (EREs)",
+        "description": "If you sell EREs (emission reduction units) for the energy your EV charger uses, every kWh it charges earns an amount on top. That income comes off the charger's cost and the house's effective cost, and counts as earned.",
+        "data": {
+          "ev_charger": "EV charger",
+          "ere_offset": "Income per kWh charged",
+          "ere_offset_sensor": "Income per kWh from a sensor"
+        },
+        "data_description": {
+          "ev_charger": "The power sensor of your charger. It must be one of the tracked devices.",
+          "ere_offset": "What a kWh charged earns, e.g. 0.08. A negative amount acts as a cost per kWh.",
+          "ere_offset_sensor": "Optional: a sensor or input number with the amount per kWh, for a price that changes. While it is unavailable, the fixed amount above is used."
+        }
       }
     },
     "error": {
       "unsupported_unit": "{sensor} reports power in {unit}. Use a sensor that reports W or kW.",
       "inverter_sign": "The inverter AC sensor has the wrong sign for this setting while the panels are producing. Toggle 'Invert inverter AC sensor'.",
-      "parent_not_independent": "A device that other devices are part of must itself be independent."
+      "parent_not_independent": "A device that other devices are part of must itself be independent.",
+      "ev_charger_not_tracked": "The EV charger {sensor} must also be one of the tracked devices.",
+      "no_tracked_devices": "Track your charger's power sensor under Devices first."
     }
   },
   "services": {

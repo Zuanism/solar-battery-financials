@@ -48,6 +48,7 @@ const NL = {
   "Devices": "Apparaten", "Sub-devices": "Sub-apparaten",
   "Show device details ({counts})": "Apparaatdetails tonen ({counts})", "Hide device details": "Apparaatdetails verbergen",
   "{n} devices": "{n} apparaten", "{n} device": "{n} apparaat", "{n} sub-devices": "{n} sub-apparaten", "{n} sub-device": "{n} sub-apparaat",
+  "EREs": "ERE's", "EREs earned": "ERE's verdiend", "EREs cost": "Kosten ERE's", "Net after EREs": "Netto na ERE's",
   "Hide idle": "Inactieve verbergen", "+{n} idle: {names}": "+{n} inactief: {names}", "No data before {date}": "Geen gegevens vóór {date}",
   // Power card tiles
   "Inverter": "Omvormer", "Battery temp": "Batterijtemp.",
@@ -113,7 +114,7 @@ const PALETTE = {
   good: "#43a047", warn: "#ffa000", bad: "#db4437", neutral: "#9ca3af",
   solar: "#ff9800", battery: "#4db6ac", grid: "#488fc2", home: "#0098d1", earned: "#43a047",
   cost: "#0288d1", energy: "#10b981", price: "#ffa000", power: "#008FFB", other: "#bdbdbd",
-  untracked: "#9e9e9e", inverter: "#039be5", temperature: "#ef6c00",
+  untracked: "#9e9e9e", inverter: "#039be5", temperature: "#ef6c00", ere: "#7cb342",
 };
 /** Tracked devices, by their place in the configuration (main devices first, then sub-devices). */
 const DEVICE_PALETTE = ["#a260f0", "#8d6e63", "#90b4f5", "#63c6a0", "#d49b00", "#e57373", "#5c6bc0", "#f06292", "#26a69a", "#ffb74d"];
@@ -546,10 +547,12 @@ const SYSTEM_SUBVIEW_CONFIGS = [
     sensorKey: "system_earnings",
     summaryKind: "earned",
     stacked: true,
-    getApexConfig: stackedApex([PALETTE.solar, PALETTE.battery]),
-    getSeries: (t) => [
+    // With an EV charger configured, the ERE income is earned too, next to solar and battery.
+    getApexConfig: (t, o = {}) => stackedApex([PALETTE.solar, PALETTE.battery, ...(o.ere ? [PALETTE.ere] : [])])(t),
+    getSeries: (t, o = {}) => [
       makeSeries(`${P}solar_only_earnings_rate`, tr("Solar"), PALETTE.solar, t),
       makeSeries(`${P}battery_added_value_rate`, tr("Battery"), PALETTE.battery, t),
+      ...(o.ere ? [makeSeries(`${P}ere_income_rate`, tr("EREs"), PALETTE.ere, t)] : []),
     ],
   },
   {
@@ -584,23 +587,25 @@ const SYSTEM_SUBVIEW_CONFIGS = [
     getSeries: (t) => [makeSeries(`${P}net_grid_cost_rate`, "Net Bill", PALETTE.grid, t)],
   },
   {
-    // Gross cost has no total of its own: it is Net bill + Total earned, shown stacked.
+    // Gross cost has no total of its own: it is Net bill + what solar and battery took off it,
+    // shown stacked. (Not "+ Total earned": that also holds ERE income, which isn't on the bill.)
     title: "Gross Cost",
     path: "financials-gross-cost",
     sensorKey: "net_grid_cost",
-    summaryKeys: ["net_grid_cost", "system_earnings"], // gross = net bill + earned
+    summaryKeys: ["net_grid_cost", "solar_only_earnings", "battery_added_value"],
     stacked: true,
-    getApexConfig: stackedApex([PALETTE.grid, PALETTE.earned]),
+    getApexConfig: stackedApex([PALETTE.grid, PALETTE.solar, PALETTE.battery]),
     getSeries: (t) => [
       makeSeries(`${P}net_grid_cost_rate`, tr("Net bill"), PALETTE.grid, t),
-      makeSeries(`${P}system_earnings_rate`, tr("Earned"), PALETTE.earned, t),
+      makeSeries(`${P}solar_only_earnings_rate`, tr("Solar"), PALETTE.solar, t),
+      makeSeries(`${P}battery_added_value_rate`, tr("Battery"), PALETTE.battery, t),
     ],
   },
 ];
 
 /** A system page's tab. All-Time shows plain lines (not stacked), one per series. */
-const createSystemSubviewTab = (t, cfg, allTimeSpan = "10y") => {
-  const series = cfg.getSeries(t);
+const createSystemSubviewTab = (t, cfg, allTimeSpan = "10y", opts = {}) => {
+  const series = cfg.getSeries(t, opts);
   const allTime = isAllTimeTab(t);
   return periodTab(t, periodChart(t, {
     title: cfg.title,
@@ -608,15 +613,16 @@ const createSystemSubviewTab = (t, cfg, allTimeSpan = "10y") => {
     allTimeSpan,
     apex: allTime
       ? baseApexConfig(lineApex(series.map((sr) => sr.color)))
-      : { ...baseApexConfig(), ...cfg.getApexConfig(t) },
+      : { ...baseApexConfig(), ...cfg.getApexConfig(t, opts) },
     series,
   }));
 };
 
-const buildSystemSubviews = (allTimeSpan = "10y") =>
+/** `opts.ere`: an EV charger with ERE income is configured. */
+const buildSystemSubviews = (allTimeSpan = "10y", opts = {}) =>
   SYSTEM_SUBVIEW_CONFIGS.map((cfg) =>
     makePanelSubview(tr("{label} History", { label: tr(cfg.title) }), cfg.path, [
-      periodTabsCard(PERIOD_TABS.map((t) => createSystemSubviewTab(t, cfg, allTimeSpan)), {
+      periodTabsCard(PERIOD_TABS.map((t) => createSystemSubviewTab(t, cfg, allTimeSpan, opts)), {
         title: tr(cfg.title),
         entity: totalEntity(`${P}${cfg.sensorKey}_rate`),
         summary: {
@@ -1112,7 +1118,9 @@ class SbfDashboardStrategy extends HTMLElement {
       return buildDeviceSubview(label, devTarget, dynamicAllTimeSpan);
     });
 
-    const systemSubviews = buildSystemSubviews(dynamicAllTimeSpan);
+    const systemSubviews = buildSystemSubviews(dynamicAllTimeSpan, {
+      ere: Boolean(states[`${prefix}ere_income_rate_cumulative`]),
+    });
     // HA's back arrow only knows one fixed target per page, so the earnings pages opened from
     // the Power tab's tiles are copies under "power-…" that lead back to Power.
     const earningsPaths = EARNINGS.map((e) => e.path);
@@ -1694,21 +1702,30 @@ const SANKEY_COLORS = { home: PALETTE.home };
  * Earnings waterfall as inline SVG, written out as a sum: Gross − Solar earned − Battery earned
  * = Net bill. Operators sit between the bars; the earned steps are light outlined boxes (money
  * taken off the bill), while Gross and Net bill are solid. A step that cost money (e.g. a
- * battery with negative value) turns into "+ … cost".
+ * battery with negative value) turns into "+ … cost". With ERE income (an EV charger), that is
+ * one more step, and the sum ends at the net cost after EREs instead of the bill.
  */
-const waterfallSvg = ({ gross, solar, battery, net }, { width, format, nav = {} }) => {
+const waterfallSvg = ({ gross, solar, battery, net, ere = null }, { width, format, nav = {} }) => {
   if ([gross, solar, battery, net].some((x) => x === null)) return "";
+  const withEre = ere !== null && Math.abs(ere) >= 0.005;
   const step = (name, amount) => (amount >= 0
     ? { label: tr(`${name} earned`), op: "−", amount }
     : { label: tr(`${name} cost`), op: "+", amount: -amount });
   const s1 = step("Solar", solar);
   const s2 = step("Battery", battery);
+  const bill = gross - solar - battery; // = net, but drawn from the steps so the bars meet exactly
   const bars = [
     { label: tr("Gross cost"), from: 0, to: gross, color: PALETTE.home, solid: true, text: format(gross), nav: nav.gross },
     { ...s1, from: gross, to: gross - solar, color: PALETTE.solar, text: format(s1.amount), nav: nav.solar },
-    { ...s2, from: gross - solar, to: gross - solar - battery, color: PALETTE.battery, text: format(s2.amount), nav: nav.battery },
-    { label: tr("Net bill"), from: 0, to: net, color: PALETTE.grid, solid: true, text: format(net), op: "=", nav: nav.net },
+    { ...s2, from: gross - solar, to: bill, color: PALETTE.battery, text: format(s2.amount), nav: nav.battery },
+    ...(withEre
+      ? [
+        { ...step("EREs", ere), from: bill, to: bill - ere, color: PALETTE.ere, text: format(Math.abs(ere)), nav: nav.total },
+        { label: tr("Net after EREs"), from: 0, to: net - ere, color: PALETTE.grid, solid: true, text: format(net - ere), op: "=", nav: nav.net },
+      ]
+      : [{ label: tr("Net bill"), from: 0, to: net, color: PALETTE.grid, solid: true, text: format(net), op: "=", nav: nav.net }]),
   ];
+  const result = withEre ? net - ere : net;
   const H = 104;
   const TOP = 48; // room for the "Total earned" bracket and the amounts above the bars
   const values = bars.flatMap((b) => [b.from, b.to]);
@@ -1736,7 +1753,7 @@ const waterfallSvg = ({ gross, solar, battery, net }, { width, format, nav = {} 
       ? `<text x="${i * slot}" y="${TOP + H / 2 + 7}" text-anchor="middle" class="wf-op">${b.op}</text>`
       : "";
     // Red = costs you money, green = a net bill below zero (you earned money).
-    const tone = i === 3 ? (net < -0.004 ? " good" : "") : (b.op === "+" ? " neg" : "");
+    const tone = i === bars.length - 1 ? (result < -0.004 ? " good" : "") : (b.op === "+" ? " neg" : "");
     const cx = x + barW / 2;
     const link = b.nav ? ` class="sk-nav" data-nav-svg="${escapeHtml(b.nav)}" tabindex="0" role="link"` : "";
     return `${op}<g${link}>${body}
@@ -1744,11 +1761,11 @@ const waterfallSvg = ({ gross, solar, battery, net }, { width, format, nav = {} 
       <text x="${cx}" y="${TOP + H + 17}" text-anchor="middle" class="wf-l">${escapeHtml(b.label)}</text>
       <title>${escapeHtml(`${b.label}: ${b.text}`)}</title></g>`;
   });
-  // Bracket over the two earned steps with their combined result.
+  // Bracket over the earned steps with their combined result.
   const bx1 = slot + (slot - barW) / 2;
-  const bx2 = 2 * slot + (slot + barW) / 2;
+  const bx2 = (withEre ? 3 : 2) * slot + (slot + barW) / 2;
   const by = 20;
-  const total = solar + battery;
+  const total = solar + battery + (withEre ? ere : 0);
   const bracketLink = nav.total ? ` class="sk-nav" data-nav-svg="${escapeHtml(nav.total)}" tabindex="0" role="link"` : "";
   const bracket = `<g${bracketLink}><path d="M${bx1},${by + 6} V${by} H${bx2} V${by + 6}" class="wf-bracket"></path>
     <rect x="${bx1}" y="${by - 20}" width="${bx2 - bx1}" height="28" style="fill:transparent"></rect>
@@ -2138,9 +2155,15 @@ class SbfFinancialsCard extends HTMLElement {
     return [...this._config.main_devices, ...this._config.sub_devices];
   }
 
+  /** An EV charger with ERE income is configured (its total exists). */
+  _hasEre() {
+    return Boolean(this._hass?.states[`${this._config.prefix}ere_income_rate_cumulative`]);
+  }
+
   _ids() {
     const bases = [
       ...EARNINGS.map((e) => e.base),
+      ...(this._hasEre() ? ["ere_income_rate"] : []),
       "total_system_cost_rate", "total_system_energy_rate", "net_grid_cost_rate", "net_grid_energy_rate",
       ...this._devices().flatMap((d) => [`${d.target}_cost_rate`, `${d.target}_energy_rate`]),
     ];
@@ -2351,12 +2374,13 @@ class SbfFinancialsCard extends HTMLElement {
     const cost = v("total_system_cost_rate");
     const kwh = v("total_system_energy_rate");
     const net = v("net_grid_cost_rate");
-    const earned = v("system_earnings_rate");
+    const solar = v("solar_only_earnings_rate");
+    const battery = v("battery_added_value_rate");
     return {
-      cost, kwh, net,
-      gross: net !== null && earned !== null ? net + earned : null,
-      solar: v("solar_only_earnings_rate"),
-      battery: v("battery_added_value_rate"),
+      cost, kwh, net, solar, battery,
+      // Not net + total earned: that also holds ERE income, which isn't on the bill.
+      gross: net !== null && solar !== null && battery !== null ? net + solar + battery : null,
+      ere: this._hasEre() ? v("ere_income_rate") : null,
       avgPrice: cost !== null && kwh !== null && Math.abs(kwh) > 0.001 ? cost / kwh : null,
     };
   }
@@ -2417,7 +2441,7 @@ class SbfFinancialsCard extends HTMLElement {
 
   _waterfallHtml(f) {
     return waterfallSvg(
-      { gross: f.gross, solar: f.solar, battery: f.battery, net: f.net },
+      { gross: f.gross, solar: f.solar, battery: f.battery, net: f.net, ere: f.ere },
       {
         width: this._diagramWidth(260),
         format: (x) => this._money(x),

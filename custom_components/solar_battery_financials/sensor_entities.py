@@ -158,6 +158,8 @@ class RateSensor(SbfSensorBase):
             "battery_sensor": m.battery_id,
             "price_sensor": m.price_id,
             "export_price_sensor": m.export_price_id,
+            "ev_charger": m.ev_charger,
+            "ere_offset": m.values["ere_offset"] if m.ev_charger else None,
         }
 
 

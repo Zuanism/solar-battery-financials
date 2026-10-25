@@ -1,8 +1,8 @@
 """Sensor platform setup for Solar & Battery Financials.
 
 Entities are declared as data (RATE_SENSORS, CUMULATIVE_SENSORS, plus two
-cumulative sensors per tracked device). Sensors of devices that are no longer
-tracked are removed from the entity registry on setup.
+cumulative sensors per tracked device). Sensors and devices of tracked devices
+that are no longer tracked are removed from the registries on setup.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import re
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -104,6 +104,9 @@ CUMULATIVE_SENSORS: tuple[CumulativeDef, ...] = (
     CumulativeDef("untracked_energy_rate", "Untracked Energy Cumulative", ENERGY, "house"),
 )
 
+# Only with an EV charger configured: what its charged kWh earned (e.g. EREs sold).
+ERE_INCOME = CumulativeDef("ere_income_rate", "ERE Income Cumulative", MONEY, "system")
+
 # Totals that existed briefly during 2.2/2.3 development; removed from the registry on setup.
 DEVICE_METRICS = (("cost_rate", "Cost", MONEY), ("energy_rate", "Energy", ENERGY))
 
@@ -136,7 +139,8 @@ async def async_setup_entry(
         for desc in RATE_SENSORS
         if not desc.requires_inverter_ac or manager.inverter_ac_id
     ]
-    for cdef in CUMULATIVE_SENSORS:
+    cumulative_defs = CUMULATIVE_SENSORS + ((ERE_INCOME,) if manager.ev_charger else ())
+    for cdef in cumulative_defs:
         sensors.append(
             CumulativeSensor(
                 manager,
@@ -173,6 +177,11 @@ async def async_setup_entry(
             )
 
     _cleanup_registry(registry, config_entry.entry_id, {s.unique_id for s in sensors})
+    _cleanup_devices(
+        dr.async_get(hass), registry, config_entry.entry_id,
+        {d.identifier for d in devices.values()}
+        | {f"{prefix}dev_financials_{safe_id(source)}" for source in tracked_devices},
+    )
 
     async_add_entities(sensors)
     await manager.async_start()
@@ -204,3 +213,19 @@ def _cleanup_registry(registry: er.EntityRegistry, entry_id: str, expected: set[
         if entry.domain == "sensor" and entry.unique_id not in expected:
             _LOGGER.info("Removing sensor that is no longer provided: %s", entry.entity_id)
             registry.async_remove(entry.entity_id)
+
+
+def _cleanup_devices(
+    dev_reg: dr.DeviceRegistry, registry: er.EntityRegistry, entry_id: str, expected: set[str]
+) -> None:
+    """Remove this entry's devices that are no longer used.
+
+    A tracked device gets a device per power sensor; replacing or renaming that
+    sensor otherwise leaves an empty "<name> Financials" device behind. Devices that
+    still have entities are left alone.
+    """
+    for device in dr.async_entries_for_config_entry(dev_reg, entry_id):
+        ours = {ident for domain, ident in device.identifiers if domain == DOMAIN}
+        if ours and not ours & expected and not er.async_entries_for_device(registry, device.id, True):
+            _LOGGER.info("Removing device that is no longer used: %s", device.name)
+            dev_reg.async_remove_device(device.id)
