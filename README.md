@@ -426,13 +426,15 @@ Current periods come from the cumulative sensors' live attributes. Past and cust
 
 ### 6.4 History pages
 
-Gross cost, Solar earned, Battery earned, Total earned, Net bill, Effective cost and each device have a history page:
+Gross cost, Solar earned, Battery earned, Total earned, Net bill, Effective cost, EREs earned (with an EV charger) and each device have a history page:
 
 - **Header:** the name (tap it to open the entity's details) and a summary for the selected span, e.g. "€12.87 · 70.9 kWh · avg €0.18/kWh in the last 14 days" (earnings pages: "€x earned in …"), kept on one line. The period tabs sit to the right of the title (below it on phones).
 - **Period tabs** (**Daily / Weekly / Monthly / Yearly / All-Time**); Daily, Weekly and Monthly also have span chips (e.g. 7 / 14 / 30 / 60 / 90 days). Only the selected tab's charts are loaded.
 - **All-Time** shows your whole history as lines with one point per day, with pills **7-day avg / 30-day avg** (default) **/ 90-day avg / Total**. With a window, each day's point covers the window up to that day: cost and energy as the average per day (titles then read "€/day", "kWh/day"), the average price as the window's cost divided by its kWh (so days with little use can't distort it). Early days with less history than the window average over what is available. **Total** is the running total (and running average price) since the start. Pages with two series (Total earnings, Gross cost) show two lines instead of a stack.
 - **Device pages** show three titled charts: Cost (€), Energy (kWh) and Average price (€/kWh).
+- **Gross cost, Effective cost and EREs earned** show the same three charts. Their kWh is the house consumption (for EREs: what the charger charged), and the average price is the gross cost, the effective cost or the ERE income per kWh. **Net bill** shows the money and the net grid energy (import − export), without an average price: around 0 kWh, or below it, a price per kWh means nothing.
 - **Earnings pages** show Solar and Battery (and EREs, with an EV charger) stacked for Total; the Gross cost page shows Net bill, Solar and Battery stacked (together they make up the gross cost).
+- **Net bill page, Incl. EREs** (only with an EV charger, see [4.8](#48-ev-charging-and-eres)): a small button next to the page title that switches the chart and the summary to the net bill minus the ERE income per period (**Net after EREs**). Periods before you configured the charger count as no ERE income. The choice is remembered per browser.
 - **Colours** on cost, energy and price bars compare the bars shown with each other: green below 0.8× their average, orange up to 1.5×, red above; zero bars are grey and unlabelled. The current, still running day/week/month/year is left out of that average and drawn pale with a normal outline, as "in progress" (otherwise it would nearly always look cheap). Earnings charts use fixed solar/battery colours.
 - **Tap a bar** to open the Financials tab on that bar's day, week, month or year.
 - **Links between a device's pages:** a device's cost history has a **Power →** link to its power page, and its power page a **Cost history →** link back. The back arrow still returns to each page's own tab.
@@ -512,6 +514,12 @@ tabs:
 ## 7. Upgrading and version history
 
 Migrations run automatically the first time a new version starts, including when upgrading from 1.2.x. Sensors that are no longer provided are removed from the entity registry; their long-term statistics are kept. Device sensors keep their entity IDs and history, but customisations made to them in the entity registry (a changed entity ID, name or icon) are not carried over from versions before 1.4.0.
+
+### 2.7.0: EREs page and energy charts
+
+- The Net bill history page has an **Incl. EREs** button (with an EV charger configured) that shows the bill minus the ERE income per day, week, month or year, and in its summary (see [6.4](#64-history-pages)).
+- kWh and average price (€/kWh) charts on the Gross cost and Effective cost pages, and a kWh chart on the Net bill page.
+- New **EREs earned** history page (with an EV charger): ERE income, kWh charged and income per kWh. The EREs step in the waterfall opens it.
 
 ### 2.6.0: EV charging (EREs)
 

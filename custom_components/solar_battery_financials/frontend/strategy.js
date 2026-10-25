@@ -48,7 +48,7 @@ const NL = {
   "Devices": "Apparaten", "Sub-devices": "Sub-apparaten",
   "Show device details ({counts})": "Apparaatdetails tonen ({counts})", "Hide device details": "Apparaatdetails verbergen",
   "{n} devices": "{n} apparaten", "{n} device": "{n} apparaat", "{n} sub-devices": "{n} sub-apparaten", "{n} sub-device": "{n} sub-apparaat",
-  "EREs": "ERE's", "EREs earned": "ERE's verdiend", "EREs cost": "Kosten ERE's", "Net after EREs": "Netto na ERE's",
+  "EREs": "ERE's", "EREs Earned": "ERE-opbrengst", "Incl. EREs": "Incl. ERE's", "EREs earned": "ERE's verdiend", "EREs cost": "Kosten ERE's", "Net after EREs": "Netto na ERE's",
   "Hide idle": "Inactieve verbergen", "+{n} idle: {names}": "+{n} inactief: {names}", "No data before {date}": "Geen gegevens vóór {date}",
   // Power card tiles
   "Inverter": "Omvormer", "Battery temp": "Batterijtemp.",
@@ -307,14 +307,120 @@ const deviceRateDataGen = (devTarget, spanUnit, statsPeriod) =>
 })();`;
 
 /**
+ * Per-period difference of two totals, e.g. net bill − EREs, for the Daily, Weekly and
+ * Monthly tabs. A period without a value of `minusId` (before that total existed) counts as 0.
+ */
+const diffDataGen = (valueId, minusId, spanUnit, statsPeriod) =>
+  `return (async () => {
+  const units = __SPAN__, end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const mult = ${spanUnit === "d" ? MS_PER_DAY : spanUnit === "w" ? MS_PER_WEEK : MS_PER_MONTH};
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(end.getTime() - (units + 1) * mult).toISOString(),
+    end_time: end.toISOString(),
+    statistic_ids: ['${valueId}', '${minusId}'],
+    period: '${statsPeriod}',
+    types: ['change']
+  });
+  const minus = new Map((res['${minusId}'] || []).map((r) => [new Date(r.start).getTime(), r.change ?? 0]));
+  return (res['${valueId}'] || []).slice(-units).map((r) => {
+    const t = new Date(r.start).getTime();
+    return [t, r.change == null ? null : parseFloat((r.change - (minus.get(t) ?? 0)).toFixed(2))];
+  });
+})();`;
+
+/**
+ * Average price per period: the sum of `costIds` (e.g. net bill + solar + battery = gross
+ * cost) divided by `energyId`'s kWh, for the Daily, Weekly and Monthly tabs.
+ */
+const ratioDataGen = (costIds, energyId, spanUnit, statsPeriod) =>
+  `return (async () => {
+  const costIds = ${JSON.stringify(costIds)}, energyId = '${energyId}';
+  const units = __SPAN__, end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const mult = ${spanUnit === "d" ? MS_PER_DAY : spanUnit === "w" ? MS_PER_WEEK : MS_PER_MONTH};
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(end.getTime() - (units + 1) * mult).toISOString(),
+    end_time: end.toISOString(),
+    statistic_ids: [...costIds, energyId],
+    period: '${statsPeriod}',
+    types: ['change']
+  });
+  const byStart = (id) => new Map((res[id] || []).map((r) => [new Date(r.start).getTime(), r.change]));
+  const costs = costIds.map(byStart), kwh = byStart(energyId);
+  return [...kwh.keys()].sort((a, b) => a - b).slice(-units).map((t) => {
+    const e = kwh.get(t), parts = costs.map((c) => c.get(t));
+    const val = e != null && e > 0 && parts.every((c) => c != null)
+      ? parseFloat((parts.reduce((a, b) => a + b, 0) / e).toFixed(3)) : null;
+    return [t, val];
+  });
+})();`;
+
+/** Yearly average price: the sum of `costIds` per year divided by `energyId`'s kWh (Yearly tab). */
+const yearlyRatioDataGen = (costIds, energyId) =>
+  `return (async () => {
+  ${JS_YEAR_TOTALS}
+  const costIds = ${JSON.stringify(costIds)}, energyId = '${energyId}';
+  const res = await monthlyChanges([...costIds, energyId]);
+  const kwh = yearTotals(res?.[energyId]), costs = costIds.map((id) => yearTotals(res?.[id]));
+  return [...kwh]
+    .filter(([y, e]) => e > 0 && costs.every((c) => c.has(y)))
+    .map(([y, e]) => [yearStart(y), parseFloat((costs.reduce((a, c) => a + c.get(y), 0) / e).toFixed(3))])
+    .sort((a, b) => a[0] - b[0]);
+})();`;
+
+/**
+ * Change per period with 0 for periods without data, for a total that only exists since
+ * recently (e.g. ERE income): with a single bar, ApexCharts would draw it chart-wide.
+ */
+const paddedChangeDataGen = (entity, spanUnit, statsPeriod) =>
+  `return (async () => {
+  const units = __SPAN__, start = new Date();
+  start.setHours(0, 0, 0, 0);
+  ${spanUnit === "w" ? "start.setDate(start.getDate() - ((start.getDay() + 6) % 7));" : spanUnit === "month" ? "start.setDate(1);" : ""}
+  const starts = [];
+  for (let i = 0; i < units; i++) {
+    const s = new Date(start);
+    ${spanUnit === "w" ? "s.setDate(s.getDate() - 7 * i);" : spanUnit === "month" ? "s.setMonth(s.getMonth() - i);" : "s.setDate(s.getDate() - i);"}
+    starts.unshift(s.getTime());
+  }
+  const res = await hass.callWS({
+    type: 'recorder/statistics_during_period',
+    start_time: new Date(starts[0]).toISOString(),
+    end_time: new Date().toISOString(),
+    statistic_ids: ['${entity}'],
+    period: '${statsPeriod}',
+    types: ['change']
+  });
+  const change = new Map((res['${entity}'] || []).map((r) => [new Date(r.start).getTime(), r.change]));
+  return starts.map((t) => [t, parseFloat((change.get(t) ?? 0).toFixed(2))]);
+})();`;
+
+/** Yearly totals of one total minus another (Yearly tab). */
+const yearlyDiffDataGen = (valueId, minusId) =>
+  `return (async () => {
+  ${JS_YEAR_TOTALS}
+  const res = await monthlyChanges(['${valueId}', '${minusId}']);
+  const minus = yearTotals(res?.['${minusId}']);
+  return [...yearTotals(res?.['${valueId}'])]
+    .map(([y, v]) => [yearStart(y), parseFloat((v - (minus.get(y) ?? 0)).toFixed(2))])
+    .sort((a, b) => a[0] - b[0]);
+})();`;
+
+/**
  * All-Time tabs: one point per day over the whole history, from daily totals. With a window
  * of N days ("__WINDOW__") each point covers the N days up to and including that day: the
  * average per day, or with `perId` the ratio of both sums (e.g. cost / kWh = average price).
- * Window 0 gives the running total (or the running ratio) since the start.
+ * Window 0 gives the running total (or the running ratio) since the start. `valueId` may be a
+ * list of totals that are added up (e.g. gross cost = net bill + solar + battery). With
+ * `minusId`, that total's daily change is subtracted first (e.g. net bill − EREs).
  */
-const rollingDataGen = (valueId, perId = null) =>
+const rollingDataGen = (valueId, perId = null, minusId = null) =>
   `return (async () => {
-  const win = __WINDOW__, ids = ['${valueId}'${perId ? `, '${perId}'` : ""}];
+  const valueIds = ${JSON.stringify([valueId].flat())};
+  const win = __WINDOW__, ids = [...valueIds${perId ? `, '${perId}'` : ""}${minusId ? `, '${minusId}'` : ""}];
   const start = new Date();
   start.setFullYear(start.getFullYear() - 10);
   const res = await hass.callWS({
@@ -326,7 +432,10 @@ const rollingDataGen = (valueId, perId = null) =>
     types: ['change']
   });
   const daily = (id) => new Map((res?.[id] || []).map((r) => [new Date(r.start).getTime(), r.change ?? 0]));
-  const values = daily(ids[0]), per = ids[1] ? daily(ids[1]) : null;
+  const values = daily(valueIds[0]), per = ${perId ? `daily('${perId}')` : "null"};
+  valueIds.slice(1).forEach((id) => daily(id).forEach((v, day) => values.set(day, (values.get(day) ?? 0) + v)));
+  ${minusId ? `const minus = daily('${minusId}');
+  values.forEach((v, day) => values.set(day, v - (minus.get(day) ?? 0)));` : ""}
   const out = [], window = [];
   let sum = 0, sumPer = 0;
   [...values.keys()].sort((a, b) => a - b).forEach((day) => {
@@ -351,7 +460,7 @@ const rollingDataGen = (valueId, perId = null) =>
  * Series of a cumulative sensor for one period tab: per-period change as columns, yearly
  * totals from the data generator, or (All-Time) a running average / running total line.
  */
-const makeSeries = (entityBase, name, color, t, unit = "") => {
+const makeSeries = (entityBase, name, color, t, unit = "", { pad = false } = {}) => {
   const entity = totalEntity(entityBase);
   return {
     entity,
@@ -364,7 +473,26 @@ const makeSeries = (entityBase, name, color, t, unit = "") => {
       ? { group_by: { func: "last", duration: "1y" }, data_generator: yearlySumDataGen(entity) }
       : isAllTimeTab(t)
         ? { data_generator: rollingDataGen(entity) }
-        : { statistics: { type: "change", period: t.stats, align: "start" } }),
+        : pad // a recent total: 0 for periods before it existed (see paddedChangeDataGen)
+          ? { data_generator: paddedChangeDataGen(entity, t.unit, t.stats) }
+          : { statistics: { type: "change", period: t.stats, align: "start" } }),
+  };
+};
+
+/** Like makeSeries, for one total minus another (e.g. net bill − EREs), per period tab. */
+const makeDiffSeries = (entityBase, minusBase, name, color, t) => {
+  const entity = totalEntity(entityBase), minus = totalEntity(minusBase);
+  return {
+    entity,
+    name,
+    type: isAllTimeTab(t) ? "line" : "column",
+    color,
+    show: { datalabels: !isAllTimeTab(t) },
+    ...(isYearlyTab(t)
+      ? { group_by: { func: "last", duration: "1y" }, data_generator: yearlyDiffDataGen(entity, minus) }
+      : isAllTimeTab(t)
+        ? { data_generator: rollingDataGen(entity, null, minus) }
+        : { data_generator: diffDataGen(entity, minus, t.unit, t.stats) }),
   };
 };
 
@@ -443,6 +571,51 @@ const deviceRateChart = (t, devTarget, label, allTimeSpan) => {
   }));
 };
 
+/** kWh per period of an energy total (e.g. house consumption), titled, for a system page. */
+const energyChart = (t, energyBase, allTimeSpan, { pad = false } = {}) => {
+  const allTime = isAllTimeTab(t);
+  return withTitle(periodChart(t, {
+    title: `${tr("Energy")} (kWh)`,
+    allTimeSpan,
+    apex: baseApexConfig(allTime ? lineApex([PALETTE.energy]) : relativeBarsApex(t)),
+    series: [makeSeries(energyBase, tr("Energy"), allTime ? PALETTE.energy : null, t, " kWh", { pad })],
+  }), `${tr("Energy")} (kWh${allTime ? "__PERDAY__" : ""})`);
+};
+
+/**
+ * Average price per period, titled, for a system page: the sum of the money totals in
+ * `costBases` (e.g. net bill + solar + battery = gross cost) divided by `energyBase`'s kWh.
+ */
+const ratioChart = (t, costBases, energyBase, allTimeSpan) => {
+  const allTime = isAllTimeTab(t);
+  const rateAxis = {
+    yaxis: { show: true, labels: { formatter: EVAL_AXIS_FORMATTER } },
+    tooltip: { enabled: true, y: { formatter: EVAL_RATE_TOOLTIP_FORMATTER } },
+  };
+  const costIds = costBases.map(totalEntity), energyId = totalEntity(energyBase);
+  const name = `${tr("Average price")} (EUR/kWh)`;
+  return withTitle(periodChart(t, {
+    title: name,
+    allTimeSpan,
+    apex: allTime
+      ? baseApexConfig(lineApex([PALETTE.price], rateAxis))
+      : { ...baseApexConfig(relativeBarsApex(t, EVAL_RATE_FORMATTER)), ...rateAxis },
+    series: [{
+      entity: costIds[0],
+      name,
+      color: PALETTE.price,
+      type: allTime ? "line" : "column",
+      unit: " €/kWh",
+      float_precision: 3,
+      show: { datalabels: !allTime },
+      ...(isYearlyTab(t) ? { group_by: { func: "last", duration: "1y" } } : {}),
+      data_generator: allTime
+        ? rollingDataGen(costIds, energyId)
+        : isYearlyTab(t) ? yearlyRatioDataGen(costIds, energyId) : ratioDataGen(costIds, energyId, t.unit, t.stats),
+    }],
+  }), `${tr("Average price")} (€/kWh)`);
+};
+
 // ============================================================================
 // 5. HISTORY SUBVIEWS (DEVICES AND SYSTEM)
 // ============================================================================
@@ -479,6 +652,8 @@ const periodTab = (t, card) => ({
  * Period tabs shared by all history subviews, so a chosen period sticks across them.
  * header: {title, entity (opens its dialog), summary: {cost: [ids], energy?: id, kind: "cost"|"earned"}
  *   or {kind: "power"|"stat", entity} for a sensor page (average, min/peak/max, and energy for power)}
+ *   Optionally toggle: {label, pref} with alt_summary (whose `subtract` ids are taken off the cost):
+ *   a remembered on/off button that switches every tab to its `alt_card` (e.g. Net bill incl. EREs).
  */
 const periodTabsCard = (tabs, header = {}) => ({ type: "custom:sbf-tabs-card", pref_key: "history", tabs, ...header });
 
@@ -526,6 +701,7 @@ const buildDeviceSubview = (label, devTarget, allTimeSpan = "10y") =>
 
 /** Apex settings for a single-series earnings chart. */
 const earningsApex = (color) => (t) => ({
+  plotOptions: { bar: { borderRadius: 4, columnWidth: "60%", dataLabels: { position: "top" } } },
   stroke: { show: true, width: 1.5, colors: [color] },
   dataLabels: makeApexDataLabels(tabLabels(t), EVAL_MONEY_FORMATTER),
 });
@@ -578,13 +754,28 @@ const SYSTEM_SUBVIEW_CONFIGS = [
     energyKey: "total_system_energy",
     getApexConfig: moneyBarsApex,
     getSeries: (t) => [makeSeries(`${P}total_system_cost_rate`, "Effective Cost", PALETTE.home, t)],
+    energy: () => `${P}total_system_energy_rate`,
+    rate: () => ({ costs: [`${P}total_system_cost_rate`], energy: `${P}total_system_energy_rate` }),
   },
   {
     title: "Net Bill",
     path: "financials-net-bill",
     sensorKey: "net_grid_cost",
+    // kWh: net grid energy (import − export). No €/kWh: around 0 kWh, or below, it means nothing.
+    energyKey: "net_grid_energy",
+    summaryPrice: false,
     getApexConfig: moneyBarsApex,
     getSeries: (t) => [makeSeries(`${P}net_grid_cost_rate`, "Net Bill", PALETTE.grid, t)],
+    energy: () => `${P}net_grid_energy_rate`,
+    // With an EV charger: a toggle for the bill minus ERE income (not on the bill, but earned by it).
+    toggle: {
+      needs: "ere",
+      label: "Incl. EREs",
+      title: "Net after EREs",
+      pref: "netbill:ere",
+      subtractKeys: ["ere_income"],
+      getSeries: (t) => [makeDiffSeries(`${P}net_grid_cost_rate`, `${P}ere_income_rate`, tr("Net after EREs"), PALETTE.grid, t)],
+    },
   },
   {
     // Gross cost has no total of its own: it is Net bill + what solar and battery took off it,
@@ -593,6 +784,7 @@ const SYSTEM_SUBVIEW_CONFIGS = [
     path: "financials-gross-cost",
     sensorKey: "net_grid_cost",
     summaryKeys: ["net_grid_cost", "solar_only_earnings", "battery_added_value"],
+    energyKey: "total_system_energy",
     stacked: true,
     getApexConfig: stackedApex([PALETTE.grid, PALETTE.solar, PALETTE.battery]),
     getSeries: (t) => [
@@ -600,27 +792,63 @@ const SYSTEM_SUBVIEW_CONFIGS = [
       makeSeries(`${P}solar_only_earnings_rate`, tr("Solar"), PALETTE.solar, t),
       makeSeries(`${P}battery_added_value_rate`, tr("Battery"), PALETTE.battery, t),
     ],
+    energy: () => `${P}total_system_energy_rate`,
+    rate: () => ({
+      costs: [`${P}net_grid_cost_rate`, `${P}solar_only_earnings_rate`, `${P}battery_added_value_rate`],
+      energy: `${P}total_system_energy_rate`,
+    }),
+  },
+  {
+    // Only with an EV charger: what its kWh earned (opened from the waterfall's EREs step).
+    title: "EREs Earned",
+    path: "financials-ere-income",
+    sensorKey: "ere_income",
+    summaryKind: "earned",
+    needs: "ere",
+    getApexConfig: earningsApex(PALETTE.ere),
+    // Its total is recent: padded bars (see paddedChangeDataGen). All three charts then come
+    // from data generators (the €/kWh one always does), which keeps their time axes aligned.
+    pad: true,
+    getSeries: (t) => [makeSeries(`${P}ere_income_rate`, "EREs Earned", PALETTE.ere, t, "", { pad: true })],
+    energy: (o) => o.ereEnergy, // the charger's kWh
+    rate: (o) => (o.ereEnergy ? { costs: [`${P}ere_income_rate`], energy: o.ereEnergy } : null),
   },
 ];
 
 /** A system page's tab. All-Time shows plain lines (not stacked), one per series. */
 const createSystemSubviewTab = (t, cfg, allTimeSpan = "10y", opts = {}) => {
-  const series = cfg.getSeries(t, opts);
   const allTime = isAllTimeTab(t);
-  return periodTab(t, periodChart(t, {
-    title: cfg.title,
-    stacked: cfg.stacked && !allTime,
-    allTimeSpan,
-    apex: allTime
-      ? baseApexConfig(lineApex(series.map((sr) => sr.color)))
-      : { ...baseApexConfig(), ...cfg.getApexConfig(t, opts) },
-    series,
-  }));
+  const energy = cfg.energy?.(opts);
+  const rate = cfg.rate?.(opts);
+  // Pages with an energy total get kWh (and €/kWh) charts under the money chart, as device pages do.
+  const extras = [
+    ...(energy ? [energyChart(t, energy, allTimeSpan, { pad: cfg.pad })] : []),
+    ...(rate ? [ratioChart(t, rate.costs, rate.energy, allTimeSpan)] : []),
+  ];
+  const chart = (series, title = cfg.title) => {
+    const money = periodChart(t, {
+      title: cfg.title,
+      stacked: cfg.stacked && !allTime,
+      allTimeSpan,
+      apex: allTime
+        ? baseApexConfig(lineApex(series.map((sr) => sr.color)))
+        : { ...baseApexConfig(), ...cfg.getApexConfig(t, opts) },
+      series,
+    });
+    return extras.length
+      ? { type: "vertical-stack", cards: [withTitle(money, `${tr(title)} (€${allTime ? "__PERDAY__" : ""})`), ...extras] }
+      : money;
+  };
+  const tab = periodTab(t, chart(cfg.getSeries(t, opts)));
+  // The toggle's chart, built only when what it needs is configured (see SbfTabsCard).
+  return hasToggle(cfg, opts) ? { ...tab, alt_card: chart(cfg.toggle.getSeries(t), cfg.toggle.title || cfg.title) } : tab;
 };
+
+const hasToggle = (cfg, opts) => Boolean(cfg.toggle && opts[cfg.toggle.needs]);
 
 /** `opts.ere`: an EV charger with ERE income is configured. */
 const buildSystemSubviews = (allTimeSpan = "10y", opts = {}) =>
-  SYSTEM_SUBVIEW_CONFIGS.map((cfg) =>
+  SYSTEM_SUBVIEW_CONFIGS.filter((cfg) => !cfg.needs || opts[cfg.needs]).map((cfg) =>
     makePanelSubview(tr("{label} History", { label: tr(cfg.title) }), cfg.path, [
       periodTabsCard(PERIOD_TABS.map((t) => createSystemSubviewTab(t, cfg, allTimeSpan, opts)), {
         title: tr(cfg.title),
@@ -629,7 +857,20 @@ const buildSystemSubviews = (allTimeSpan = "10y", opts = {}) =>
           kind: cfg.summaryKind || "cost",
           cost: (cfg.summaryKeys || [cfg.sensorKey]).map((k) => totalEntity(`${P}${k}_rate`)),
           ...(cfg.energyKey ? { energy: totalEntity(`${P}${cfg.energyKey}_rate`) } : {}),
+          ...(cfg.summaryPrice === false ? { price: false } : {}),
         },
+        ...(hasToggle(cfg, opts)
+          ? {
+            toggle: { label: cfg.toggle.label, pref: cfg.toggle.pref },
+            alt_summary: {
+              kind: cfg.summaryKind || "cost",
+              cost: (cfg.summaryKeys || [cfg.sensorKey]).map((k) => totalEntity(`${P}${k}_rate`)),
+              subtract: cfg.toggle.subtractKeys.map((k) => totalEntity(`${P}${k}_rate`)),
+              ...(cfg.energyKey ? { energy: totalEntity(`${P}${cfg.energyKey}_rate`) } : {}),
+              ...(cfg.summaryPrice === false ? { price: false } : {}),
+            },
+          }
+          : {}),
       }),
     ]));
 // ============================================================================
@@ -1118,8 +1359,11 @@ class SbfDashboardStrategy extends HTMLElement {
       return buildDeviceSubview(label, devTarget, dynamicAllTimeSpan);
     });
 
+    const charger = totPwr?.attributes?.ev_charger;
     const systemSubviews = buildSystemSubviews(dynamicAllTimeSpan, {
       ere: Boolean(states[`${prefix}ere_income_rate_cumulative`]),
+      // The EV charger's kWh, for the EREs page's kWh and €/kWh charts.
+      ereEnergy: charger ? `${P}${getDevInfo(charger, states, names, prefix, untrackedSensor).devTarget}_energy_rate` : null,
     });
     // HA's back arrow only knows one fixed target per page, so the earnings pages opened from
     // the Power tab's tiles are copies under "power-…" that lead back to Power.
@@ -1291,6 +1535,11 @@ class SbfTabsCard extends HTMLElement {
     return tabs.find((t) => t.label === saved) || tabs[0];
   }
 
+  /** The optional `toggle` is on: tabs show their `alt_card` and the summary `alt_summary`. */
+  _alt() {
+    return Boolean(this._config.toggle) && readPref(`toggle:${this._config.toggle.pref}`, false) === true;
+  }
+
   _span(tab) {
     if (!tab.spans) return null;
     const saved = readPref(`${this._key}:span:${tab.label}`, tab.default_span);
@@ -1302,12 +1551,16 @@ class SbfTabsCard extends HTMLElement {
     const tab = this._tab();
     const span = this._span(tab);
     this._renderedTab = tab.label;
+    const toggle = this._config.toggle
+      ? `<div class="seg toggle" role="group"><button data-toggle aria-pressed="${this._alt()}">${escapeHtml(tr(this._config.toggle.label))}</button></div>`
+      : "";
     const heading = title
       ? `<div class="head">
           <div class="title-row">
             <button class="title" ${entity ? "" : "disabled"}>${escapeHtml(title)}</button>
             ${this._config.live ? '<span id="now" class="now"></span>' : ""}
             ${this._config.link ? `<button class="xlink">${escapeHtml(this._config.link.label)} →</button>` : ""}
+            ${toggle}
           </div>
           <div id="summary" class="summary"></div>
         </div>`
@@ -1321,13 +1574,15 @@ class SbfTabsCard extends HTMLElement {
             ${segmentHtml("span", tab.spans.map((s) => [s.value, s.label]), span.value)}
             ${span.detail_vars ? `<div class="seg" role="group"><button data-detail aria-pressed="${Boolean(this._detail)}">${tr("Detailed")}</button></div>` : ""}
           </div>` : ""}
+          ${title ? "" : toggle}
         </div>
       </div>
       <div id="progress" class="progress"></div>
       <div id="child"></div>`;
-    this.shadowRoot.querySelectorAll(".controls button").forEach((btn) =>
+    this.shadowRoot.querySelectorAll(".controls button, button[data-toggle]").forEach((btn) =>
       btn.addEventListener("click", () => {
         if (btn.dataset.detail !== undefined) this._detail = !this._detail; // not remembered: resets on leaving
+        else if (btn.dataset.toggle !== undefined) writePref(`toggle:${this._config.toggle.pref}`, !this._alt());
         else if (btn.dataset.tab !== undefined) {
           writePref(`${this._key}:tab`, btn.dataset.tab);
           if (this._key === "history") linkPeriodFromHistory(btn.dataset.tab);
@@ -1366,11 +1621,12 @@ class SbfTabsCard extends HTMLElement {
 
   /** "€12.87 · 70.9 kWh · avg €0.18/kWh in the last 14 days", from long-term statistics. */
   async _loadSummary() {
-    const summary = this._config.summary;
+    const alt = this._alt() && this._config.alt_summary;
+    const summary = alt || this._config.summary;
     const tab = this._tab();
     if (!summary || !this._hass) return;
     const span = this._span(tab);
-    const key = `${tab.label}:${span?.value ?? ""}`;
+    const key = `${tab.label}:${span?.value ?? ""}:${Boolean(alt)}`;
     if (this._summaryFor === key) return;
     this._summaryFor = key;
     const start = this._spanStart(tab, span);
@@ -1379,22 +1635,24 @@ class SbfTabsCard extends HTMLElement {
     const change = (id) => this._hass
       .callWS({ type: "recorder/statistic_during_period", statistic_id: id, types: ["change"], ...period })
       .then((r) => r?.change ?? null, () => null);
-    const [costs, kwh] = await Promise.all([
+    const [costs, kwh, minus] = await Promise.all([
       Promise.all(summary.cost.map(change)),
       summary.energy ? change(summary.energy) : Promise.resolve(null),
+      Promise.all((summary.subtract || []).map(change)),
     ]);
     if (this._summaryFor !== key) return; // selection changed meanwhile
     const el = this.shadowRoot.getElementById("summary");
     if (!el || costs.some((c) => c === null)) return;
     const money = (v) => formatMoney(this._hass, v);
-    const total = costs.reduce((a, b) => a + b, 0);
+    // `subtract`: e.g. EREs off the net bill; a total without data in the span counts as 0.
+    const total = costs.reduce((a, b) => a + b, 0) - minus.reduce((a, b) => a + (b ?? 0), 0);
     const when = tab.period === "all" ? tr("all time")
       : span ? tr("in the last {span}", { span: tr(span.label).toLowerCase() })
         : tab.period === "y" ? tr("in the last 10 years") : tr("all time");
     const parts = summary.kind === "earned" ? [tr("{amount} earned", { amount: money(total) })] : [money(total)];
     if (kwh !== null && summary.kind !== "earned") {
       parts.push(`${kwh.toFixed(1)} kWh`);
-      if (Math.abs(kwh) > 0.001) parts.push(tr("avg {price}/kWh", { price: money(total / kwh) }));
+      if (summary.price !== false && Math.abs(kwh) > 0.001) parts.push(tr("avg {price}/kWh", { price: money(total / kwh) }));
     }
     el.textContent = `${parts.join(" · ")} ${when}`;
   }
@@ -1448,7 +1706,7 @@ class SbfTabsCard extends HTMLElement {
     const tab = this._tab();
     const span = this._span(tab);
     const mobile = window.innerWidth < 600;
-    let json = JSON.stringify(tab.card);
+    let json = JSON.stringify(this._alt() && tab.alt_card ? tab.alt_card : tab.card);
     const vars = { ...span?.vars, ...(this._detail && span?.detail_vars) };
     Object.entries(vars).forEach(([name, raw]) => {
       const value = Array.isArray(raw) ? raw[mobile ? 0 : 1] : raw;
@@ -1720,7 +1978,7 @@ const waterfallSvg = ({ gross, solar, battery, net, ere = null }, { width, forma
     { ...s2, from: gross - solar, to: bill, color: PALETTE.battery, text: format(s2.amount), nav: nav.battery },
     ...(withEre
       ? [
-        { ...step("EREs", ere), from: bill, to: bill - ere, color: PALETTE.ere, text: format(Math.abs(ere)), nav: nav.total },
+        { ...step("EREs", ere), from: bill, to: bill - ere, color: PALETTE.ere, text: format(Math.abs(ere)), nav: nav.ere || nav.total },
         { label: tr("Net after EREs"), from: 0, to: net - ere, color: PALETTE.grid, solid: true, text: format(net - ere), op: "=", nav: nav.net },
       ]
       : [{ label: tr("Net bill"), from: 0, to: net, color: PALETTE.grid, solid: true, text: format(net), op: "=", nav: nav.net }]),
@@ -1804,6 +2062,9 @@ const TABS_CSS = `
   .span-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
   .top.titled .span-row { justify-content: flex-end; }
   .title-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; }
+  /* An on/off pill next to the title (e.g. Incl. EREs): smaller than the period pills. */
+  .title-row .toggle { align-self: center; padding: 2px; }
+  .title-row .toggle button { font-size: 12px; padding: 4px 10px; }
   .xlink { border: 0; background: none; font: inherit; font-size: 13px; color: var(--primary-color); cursor: pointer;
            padding: 2px 8px; border-radius: 999px; }
   .xlink:hover { background: ${SUBTLE_BG(0.05)}; }
@@ -2449,6 +2710,7 @@ class SbfFinancialsCard extends HTMLElement {
           solar: this._url("financials-solar-only-earnings"),
           battery: this._url("financials-battery-added-value"),
           total: this._url("financials-total-system-earnings"),
+          ere: this._url("financials-ere-income"),
           net: this._url("financials-net-bill"),
           gross: this._url("financials-gross-cost"),
         },
